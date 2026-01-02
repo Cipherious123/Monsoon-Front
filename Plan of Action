@@ -1,0 +1,466 @@
+There are 3 types of actions - Active, Defensive, Responsive:
+ Active involves math heavy problems of check dam construction ,etc. to get ahead of the threat. 
+ Defensive actions involve resource allocation problems of sending the right amount of boats to correct places based on weather data, 
+ Responsive actions involve political decisions of prioritizing which people for evacuation, handling of Rohingya migrants, etc. \
+
+
+🔺 ACTION CATEGORIES (EXPANDED)
+1️⃣ ACTIVE ACTIONS
+
+Math-heavy, proactive, high leverage, often irreversible
+
+These are taken before damage peaks. Fewer in number, higher impact.
+
+Examples
+A1. Check Dam Placement (Expected Value)
+
+As before:
+
+𝐸
+𝑉
+=
+(
+1
+−
+𝑝
+𝑓
+𝑎
+𝑖
+𝑙
+)
+×
+flow reduction
+EV=(1−p
+fail
+	​
+
+)×flow reduction
+A2. Embankment Reinforcement Allocation
+
+You have E units of reinforcement, split among segments.
+
+Each segment 
+𝑖
+i has:
+
+Stress 
+𝑆
+𝑖
+S
+i
+	​
+
+
+Reinforcement 
+𝑟
+𝑖
+r
+i
+	​
+
+
+Failure probability:
+
+𝑝
+𝑖
+=
+min
+⁡
+(
+1
+,
+𝑆
+𝑖
+𝑟
+𝑖
++
+1
+)
+p
+i
+	​
+
+=min(1,
+r
+i
+	​
+
++1
+S
+i
+	​
+
+	​
+
+)
+
+Goal: minimize total expected breach:
+
+∑
+𝑝
+𝑖
+∑p
+i
+	​
+
+
+Simple integer allocation problem.
+
+A3. Controlled Floodplain Release
+
+Deliberately allow flooding in one region to save others.
+
+Each region has:
+
+Population 
+𝑃
+P
+
+Storage capacity 
+𝐶
+C
+
+Water diverted reduces downstream flood by:
+
+Δ
+𝑊
+=
+𝛼
+⋅
+𝐶
+ΔW=α⋅C
+
+Ethical + math tradeoff.
+
+A4. Reservoir Release Timing
+
+Release now vs later.
+
+Early release → smaller downstream flood
+
+Late release → risk dam failure
+
+Player compares:
+
+𝐸
+(
+early loss
+)
+𝑣
+𝑠
+𝐸
+(
+catastrophic failure
+)
+E(early loss)vsE(catastrophic failure)
+A5. Pump Network Optimization
+
+Pumps reduce water logarithmically:
+
+Δ
+𝑊
+=
+𝑘
+⋅
+ln
+⁡
+(
+1
++
+𝑛
+)
+ΔW=k⋅ln(1+n)
+
+Diminishing returns → encourages spreading pumps.
+
+2️⃣ DEFENSIVE ACTIONS
+
+Operational, logistical, resource-limited
+
+These happen every turn.
+
+Examples
+D1. Boat Allocation
+
+Each district:
+
+Flood level 
+𝐹
+F
+
+Population trapped 
+𝑃
+P
+
+Weather severity 
+𝑊
+W
+
+Rescue rate:
+
+𝑅
+=
+boats
+𝑊
+×
+𝑘
+R=
+W
+boats
+	​
+
+×k
+D2. Helicopter Deployment
+
+Binary success:
+
+𝑃
+(
+flight
+)
+=
+1
+−
+fog probability
+P(flight)=1−fog probability
+
+High cost, high reward.
+
+D3. Camp Capacity Planning
+
+Overcrowding penalty:
+
+Disease Risk
+∝
+people
+capacity
+Disease Risk∝
+capacity
+people
+	​
+
+D4. Fuel Logistics
+
+Fuel decays per turn.
+Over-commitment now → no mobility later.
+
+D5. Engineer Deployment
+
+Engineers reduce future failure probabilities but consume transport.
+
+3️⃣ RESPONSIVE ACTIONS
+
+Political, ethical, perception-based; numbers are fuzzy
+
+These don’t always affect flood mechanics directly, but strongly influence outcomes.
+
+Examples
+R1. Evacuation Priority Decision
+
+Choose priority:
+
+Children & elderly
+
+Urban professionals
+
+Migrant workers
+
+Rohingya refugee camps
+
+Each affects:
+
+Trust
+
+Media
+
+Long-term stability
+
+R2. Rohingya Camp Handling
+
+Options:
+
+Full evacuation (high backlash risk)
+
+Partial aid (security risk)
+
+No evacuation (humanitarian cost)
+
+Hidden future consequences.
+
+R3. Media Strategy
+
+Transparency → trust + panic
+
+Control → stability – credibility
+
+R4. Political Visit Scheduling
+
+Allows funding but freezes operations.
+
+R5. Inter-State Water Dispute Response
+
+Assam vs Arunachal coordination impacts upstream releases.
+
+▶️ EXTENDED SAMPLE PLAYTHROUGH (12 TURNS)
+
+Each turn = 12 hours
+
+TURN 1 — INITIAL SETUP
+
+Heavy rainfall forecast (σ = high)
+
+Player takes:
+
+D1: Boats split evenly
+
+R3: Transparent media briefing
+
+TURN 2 — ACTIVE: CHECK DAM
+
+Player solves expected value → selects Site C
+Flow reduced by 25%
+
+TURN 3 — DEFENSIVE: BOAT ALLOCATION
+
+Weather worsens in Dhemaji
+
+Player reallocates boats from Dibrugarh
+
+Outcome:
+
+Rural rescues up
+
+Urban criticism begins
+
+TURN 4 — RESPONSIVE: MIGRANT CAMPS
+
+Rohingya camps flooding.
+
+Player chooses:
+
+“Partial evacuation with military supervision”
+
+Outcome:
+
+Trust ↑ internationally
+
+Security risk flagged
+
+TURN 5 — ACTIVE: EMBANKMENT REINFORCEMENT
+
+Player allocates 6 units across 3 segments.
+
+Math-driven decision:
+
+Minimizes expected breach
+
+Outcome:
+
+One minor breach instead of two
+
+TURN 6 — DEFENSIVE: HELICOPTER GAMBLE
+
+Fog probability = 0.6
+
+Player flies anyway.
+
+Outcome roll:
+
+2 succeed
+
+1 forced landing → resource loss
+
+TURN 7 — RESPONSIVE: MEDIA STORM
+
+Video of stranded villagers goes viral.
+
+Player chooses:
+
+Divert resources publicly
+
+Or stick to original plan
+
+Chooses: Divert
+
+Outcome:
+
+Trust ↑
+
+Logistics efficiency ↓
+
+TURN 8 — ACTIVE: CONTROLLED FLOODING
+
+Player floods agricultural floodplain.
+
+Math:
+
+Sacrifice 10k livelihoods
+
+Save 50k urban residents
+
+Outcome:
+
+Long-term unrest risk added
+
+TURN 9 — DEFENSIVE: HEALTH CRISIS
+
+Disease risk crosses threshold.
+
+Player reallocates:
+
+Medical teams from rescues
+
+Outcome:
+
+Short-term deaths ↑
+
+Epidemic prevented
+
+TURN 10 — RESPONSIVE: POLITICAL PRESSURE
+
+Minister demands refinery protection.
+
+Player complies.
+
+Outcome:
+
+Economy saved
+
+Rural anger ↑
+
+TURN 11 — ACTIVE: RESERVOIR RELEASE
+
+Player calculates expected catastrophic loss.
+
+Releases early.
+
+Outcome:
+
+Flood peak reduced
+
+Minor downstream damage
+
+TURN 12 — RESOLUTION
+
+Rain subsides.
+
+Final Metrics
+
+Lives saved: High
+
+Civil unrest risk: Medium
+
+International image: High
+
+Army readiness: Reduced
+
+🧠 WHY THIS DESIGN WORKS
+
+Active actions = few, math-heavy, decisive
+
+Defensive actions = frequent, resource-limited
+
+Responsive actions = messy, political, long-term
+
+Player cannot optimize all three.
+
