@@ -25,14 +25,135 @@ class sector:
         self.deaths = 0
         self.coords = coords
 
-class river:
-    def __init__(self, name, path):
-        self.name = name
-        self.path = {}
-        self.path.fromkeys(path, 0.5)
-    
     def flood(self):
-        pass
+        """
+        Apply consequences of flooding to this sector.
+        Should be called once per turn after flood propagation.
+        
+        Returns the amount of floodwater absorbed by the sector.
+        """
+
+        if self.flood_level <= 0:
+            return 0  # no flood, no consequences
+
+        # -----------------------------
+        # 1. FLOOD ABSORPTION (future impact)
+        # -----------------------------
+        absorbed = self.flood_level * self.absorption
+        self.flood_level -= absorbed
+
+        # -----------------------------
+        # 2. INFRASTRUCTURE DAMAGE
+        # -----------------------------
+        # Poor infra collapses faster under flood pressure
+        infra_damage = self.flood_level * (1.2 - self.infra / 100)
+        self.infra -= infra_damage
+        self.infra = max(self.infra, 0)
+
+        # -----------------------------
+        # 3. HEALTH SYSTEM DEGRADATION
+        # -----------------------------
+        health_damage = self.flood_level * 0.6
+        self.health -= health_damage
+        self.health = max(self.health, 0)
+
+        # -----------------------------
+        # 4. CASUALTIES
+        # -----------------------------
+        # Deaths scale with flood level, population,
+        # and inversely with infra & health
+        vulnerability = (2 - (self.infra + self.health) / 100)
+        death_rate = 0.0005 * self.flood_level * vulnerability
+
+        new_deaths = int(self.population * death_rate)
+        new_deaths = min(new_deaths, self.population)
+
+        self.population -= new_deaths
+        self.deaths += new_deaths
+
+        # -----------------------------
+        # 5. POLITICAL CONSEQUENCES
+        # -----------------------------
+        political_loss = (
+            new_deaths * 0.01 +
+            infra_damage * 0.3 +
+            self.flood_level * 0.5
+        )
+
+        self.political_power -= political_loss
+        self.political_power = max(self.political_power, 0)
+
+        return absorbed
+
+class river:
+    def __init__(self, name, path, terminal):
+        self.name = name
+        self.path = path #[{sector, width, max_height, height}, {}...]
+        self.terminal = terminal #(river, sector)
+    
+    def add_water(self, sector, amount):
+        for path_var in self.path:
+            if sector == path_var["sector"]:
+                path_var["height"] += amount / path_var["width"]
+                break
+        
+    def flood_propagate(self):
+        """
+        Propagates flood water along the river path.
+        Called once per turn.
+        """
+
+        MAX_TRANSFER_FRACTION = 0.25     # Max % of height transferable per turn
+        FLOW_COEFFICIENT = 0.6            # Controls aggressiveness of flow
+        FLOOD_SPILL_FACTOR = 0.3          # How much overflow spills into sector
+
+        for i in range(len(self.path) - 1):
+            current = self.path[i]
+            downstream = self.path[i + 1]
+
+            cur_sector = current["sector"]
+            down_sector = downstream["sector"]
+
+            # Effective heights include terrain
+            effective_height_cur = (
+                cur_sector.base_height + current["height"]
+            )
+            effective_height_down = (
+                down_sector.base_height + downstream["height"]
+            )
+
+            # No downhill flow → no transfer
+            if effective_height_cur <= effective_height_down:
+                continue
+
+            # Height differential drives flow
+            height_diff = effective_height_cur - effective_height_down
+
+            # Limit transfer per turn (inertia)
+            max_transfer = current["height"] * MAX_TRANSFER_FRACTION
+            transfer = min(
+                max_transfer,
+                height_diff * FLOW_COEFFICIENT
+            )
+
+            if transfer <= 0:
+                continue
+
+            # Apply transfer
+            current["height"] -= transfer
+            downstream["height"] += transfer
+
+            # Check overflow in downstream
+            overflow = max(
+                0,
+                downstream["height"] - downstream["max_height"]
+            )
+
+            if overflow > 0:
+                # Spill into sector (floodplain)
+                spilled = overflow * FLOOD_SPILL_FACTOR
+                downstream["height"] -= spilled
+                down_sector.flooded += spilled
 
 
 class dam:
