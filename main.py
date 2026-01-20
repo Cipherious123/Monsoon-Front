@@ -2,6 +2,7 @@ import classes
 import graphics
 import sys
 import random
+import math
 
 #Starting the game 
 print("""
@@ -93,9 +94,7 @@ def deploy_food():
     if y <= money:
         money -= y
 
-        for i in classes.game_map:
-            if i.name==c:
-                i.food+=y
+        classes.game_map[c].health += y*0.02
 
 def helicopter_rescue(): #Incomplete!
     print("This choice is for emergency evacuation where other modes of evacuation may not be effective.")
@@ -111,117 +110,102 @@ def helicopter_rescue(): #Incomplete!
     if choice==False:
         pass
 
+def evac():
+    pass
 
 commands = {"quit": quitting, "show-boats": show_boats, 
-            "show-dams": show_dams,"deploy-boats": deploy_boats, "build-dam": build_dam, "deploy-food": deploy_food}
+            "show-dams": show_dams,"deploy-boats": deploy_boats, "build-dam": build_dam, 
+            "deploy-food": deploy_food, "call_evac": evac}
 
-def generate_rainfall(turn_number, recent_rain_history=None):
+def generate_rainfall(
+    sectors,
+    turn_number,
+    correlation_radius=5.0
+):
     """
-    Decide rainfall for a turn.
+    Generate spatially correlated rainfall for sectors.
 
     Args:
-        turn_number (int): current game turn
-        recent_rain_history (list): list of last N rainfall values (can be None)
+        sectors (dict):
+            sector_id -> (x, y)
+        turn_number (int)
+        max_turns (int)
+        correlation_radius (float): higher = smoother rainfall
 
     Returns:
-        dict with keys:
-        - 'type': str (normal / heavy / extreme)
-        - 'rainfall': float (amount of water added)
-        - 'description': str (for player-facing events)
+        dict:
+            sector_id -> rainfall amount (float)
     """
 
-    if recent_rain_history is None:
-        recent_rain_history = []
+    # ---- Game phase (0 = early, 1 = late) ----
+    phase = min(1.0, turn_number / 10)
 
-    # ---- Base probabilities ----
-    normal_rain_prob = 0.65
-    heavy_rain_prob = 0.25
-    extreme_prob = 0.10   # cyclones, cloudbursts, etc.
+    # ---- Phase-based probabilities ----
+    # Early: consistently high rain
+    # Late: more variance, extremes & droughts
+    base_mean = (1 - phase) * 5.0 + phase * 3.0
+    base_variance = (1 - phase) * 1.0 + phase * 4.0
 
-    # ---- Anti-stall mechanic ----
-    # If it's been dry recently, push probability upward
-    avg_recent_rain = sum(recent_rain_history[-5:]) / max(1, len(recent_rain_history[-5:]))
+    cyclone_prob = 0.05 + phase * 0.20
+    low_rain_prob = phase * 0.25
 
-    if avg_recent_rain < 1.5:
-        heavy_rain_prob += 0.10
-        extreme_prob += 0.05
-
-    # Normalize
-    total = normal_rain_prob + heavy_rain_prob + extreme_prob
-    normal_rain_prob /= total
-    heavy_rain_prob /= total
-    extreme_prob /= total
-
+    # ---- Decide global weather mode ----
     roll = random.random()
 
-    # ---- Normal rainfall ----
-    if roll < normal_rain_prob:
-        rainfall = random.uniform(0.5, 2.5)
-        rain_history.append(rainfall)
-
-        return {
-            "type": "normal",
-            "rainfall": rainfall,
-            "description": "Seasonal rainfall across the area."
-        }
-
-    # ---- Heavy rainfall / monsoon surge ----
-    elif roll < normal_rain_prob + heavy_rain_prob:
-        rainfall = random.uniform(3.0, 6.0)
-        rain_history.append(rainfall)
-        return {
-            "type": "heavy",
-            "rainfall": rainfall,
-            "description": "Heavy monsoon rains swell rivers and low-lying areas."
-        }
-
-    # ---- Extreme weather event ----
+    if roll < cyclone_prob:
+        global_intensity = random.uniform(10.0, 18.0)
+    elif roll < cyclone_prob + low_rain_prob:
+        global_intensity = random.uniform(0.3, 1.2)
     else:
-        event = random.choice(["Cyclone", "Cloudburst", "Depression"])
-        rainfall = random.uniform(8.0, 15.0)
-        rain_history.append(rainfall)
+        global_intensity = random.gauss(base_mean, base_variance)
 
-        return {
-            "type": "extreme",
-            "rainfall": rainfall,
-            "description": f"{event} strikes the region! Massive rainfall overwhelms defenses."
-        }
-    
+    # ---- Generate spatial noise anchors ----
+    anchor_count = max(3, len(sectors) // 6)
+    anchors = []
 
-def inter_turn_recovery(player):
+    for _ in range(anchor_count):
+        ax, ay = random.choice(list(sectors.values()))
+        strength = random.uniform(-2.0, 2.0)
+        anchors.append((ax, ay, strength))
+
+    # ---- Allocate rainfall to sectors ----
+    rainfall_map = {}
+
+    for sector_id, (sx, sy) in sectors.items():
+        influence = 0.0
+
+        for ax, ay, strength in anchors:
+            dist = math.hypot(sx - ax, sy - ay)
+            weight = math.exp(-dist / correlation_radius)
+            influence += strength * weight
+
+        rainfall = max(0.0, global_intensity + influence)
+        rainfall_map[sector_id] = rainfall
+
+    return rainfall_map
+
+def inter_turn_recovery():
     """
     Recharges player health, money, and rescue resources between turns.
     Balances catch-up for bad turns and rewards political power.
-    """
+"""
 
-    # ---------- CATCH-UP FACTOR (based on deaths) ----------
-    # More deaths → more aid, but diminishing returns
-    death_factor = min(player.deaths_this_turn / 1000, 2.0)  # cap effect
+    death_factor = min(deaths / 1000, 2.0)  # cap effect
+    political_factor = 0.5 + (political / 100)
 
-    # ---------- POLITICAL POWER FACTOR ----------
-    # Scales from 0.5 to 1.5
-    political_factor = 0.5 + (player.political_power / 100)
-
-    # ---------- MONEY GRANTS ----------
-    base_money = 500
-    disaster_aid = 800 * death_factor
-    political_bonus = 700 * political_factor
+    base_money = 100
+    disaster_aid = 20 * death_factor
+    political_bonus = 70 * political_factor
 
     money_gain = base_money + disaster_aid + political_bonus
-    money_gain *= random.uniform(0.9, 1.1)
+    money += int(money_gain)
 
-    player.money += int(money_gain)
-
-    # ---------- RESOURCE REPLENISHMENT ----------
-    # Boats help more during heavy death turns
     boats_gained = int((1 + death_factor) * random.choice([0, 1, 2]))
-
-    # Helicopters are rarer, depend heavily on political power
-    helicopters_gained = 1 if random.random() < (player.political_power / 200) else 0
+    helicopters_gained = 2 if random.random() < (political / 200) else 0
 
     boats["Guwahati"]["inactive"] += boats_gained
     helicopters += helicopters_gained
-    player.deaths_this_turn = 0
+    deaths = 0
 
 def random_events_between_turns(player, sectors):
     """
@@ -260,16 +244,16 @@ def random_events_between_turns(player, sectors):
             cost = int(20 * severity)
             gain = int(10 * severity)
 
-            if player.money >= cost:
-                player.money -= cost
-                player.political_power = min(100, player.political_power + gain)
+            if money >= cost:
+                money -= cost
+                political = min(100, political + gain)
                 sector.infra += 2
                 event_log.append(
                     f"Political visit in {sector.name}. Money spent: {cost}. "
                     f"Political power +{gain}, infra improved."
                 )
             else:
-                player.political_power -= 5
+                political -= 5
                 event_log.append(
                     f"Political visit mishandled in {sector.name}. "
                     f"Public anger rises. Political power -5."
@@ -282,7 +266,7 @@ def random_events_between_turns(player, sectors):
             influx = int(1000 * severity)
             sector.population += influx
             sector.health -= 5 * severity
-            player.political_power -= 3
+            political -= 3
 
             event_log.append(
                 f"Illegal immigration reported in {sector.name}. "
@@ -300,8 +284,8 @@ def random_events_between_turns(player, sectors):
 
                 # Player response cost
                 response_cost = int(30 * severity)
-                if player.money >= response_cost:
-                    player.money -= response_cost
+                if money >= response_cost:
+                    money -= response_cost
                     sector.health += 8
                     event_log.append(
                         f"Disease outbreak in {sector.name}. {deaths} deaths. "
@@ -309,7 +293,7 @@ def random_events_between_turns(player, sectors):
                     )
                 else:
                     sector.deaths += int(deaths * 0.5)
-                    player.political_power -= 5
+                    political -= 5
                     event_log.append(
                         f"Disease outbreak worsens in {sector.name} due to lack of funds."
                     )
@@ -323,11 +307,11 @@ def random_events_between_turns(player, sectors):
         # -------------------------
         elif event_type == "media_expose":
             loss = int(8 * severity)
-            player.political_power -= loss
+            political -= loss
 
-            if player.money >= 15:
-                player.money -= 15
-                player.political_power += 5
+            if money >= 15:
+                money -= 15
+                political += 5
                 event_log.append(
                     "Media exposes relief inefficiencies. "
                     "Damage control attempted."
@@ -344,7 +328,7 @@ def random_events_between_turns(player, sectors):
         elif event_type == "ngo_aid":
             heal = int(10 * severity)
             sector.health += heal
-            player.money += 20
+            political += 20
             event_log.append(
                 f"NGOs assist in {sector.name}. Health +{heal}, money +20."
             )
@@ -377,15 +361,16 @@ def run_turn():
             commands[command.lower()]()
         
     generate_rainfall(game_time, rain_history)
-
     for dam in dams:
         dam.fail()
 
     for river in classes.rivers:
         river.flood_propagate()
 
-    for sector in classes.gamemap:
-        sector.flood()
-
+    deaths = 0
+    for sector_name in classes.gamemap:
+        classes.gamemap[sector].flood()
+        deaths += classes.gamemap[sector].deaths
+    
     inter_turn_recovery()
     random_events_between_turns()

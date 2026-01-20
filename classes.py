@@ -29,41 +29,27 @@ class sector:
         """
         Apply consequences of flooding to this sector.
         Should be called once per turn after flood propagation.
-        
-        Returns the amount of floodwater absorbed by the sector.
         """
 
-        if self.flood_level <= 0:
+        if self.flooded <= 0:
             return 0  # no flood, no consequences
 
-        # -----------------------------
-        # 1. FLOOD ABSORPTION (future impact)
-        # -----------------------------
-        absorbed = self.flood_level * self.absorption
-        self.flood_level -= absorbed
+        absorbed = self.flooded * self.absorption
+        self.flooded -= absorbed
 
-        # -----------------------------
-        # 2. INFRASTRUCTURE DAMAGE
-        # -----------------------------
         # Poor infra collapses faster under flood pressure
-        infra_damage = self.flood_level * (1.2 - self.infra / 100)
+        infra_damage = self.flooded * (1.2 - self.infra / 100)
         self.infra -= infra_damage
         self.infra = max(self.infra, 0)
 
-        # -----------------------------
-        # 3. HEALTH SYSTEM DEGRADATION
-        # -----------------------------
-        health_damage = self.flood_level * 0.6
+        health_damage = self.flooded * 0.6
         self.health -= health_damage
         self.health = max(self.health, 0)
 
-        # -----------------------------
-        # 4. CASUALTIES
-        # -----------------------------
         # Deaths scale with flood level, population,
         # and inversely with infra & health
-        vulnerability = (2 - (self.infra + self.health) / 100)
-        death_rate = 0.0005 * self.flood_level * vulnerability
+        vulnerability = (2 - (self.infra + self.health + self.vulnerability) / 100)
+        death_rate = 0.0005 * self.flooded * vulnerability
 
         new_deaths = int(self.population * death_rate)
         new_deaths = min(new_deaths, self.population)
@@ -71,19 +57,15 @@ class sector:
         self.population -= new_deaths
         self.deaths += new_deaths
 
-        # -----------------------------
-        # 5. POLITICAL CONSEQUENCES
-        # -----------------------------
         political_loss = (
             new_deaths * 0.01 +
             infra_damage * 0.3 +
-            self.flood_level * 0.5
+            self.flooded * 0.5
         )
 
         self.political_power -= political_loss
         self.political_power = max(self.political_power, 0)
 
-        return absorbed
 
 class river:
     def __init__(self, name, path, terminal):
@@ -92,6 +74,9 @@ class river:
         self.terminal = terminal #(river, sector)
     
     def add_water(self, sector, amount):
+        """
+        Increases water level in a certain sector of the river by amount.
+        """
         for path_var in self.path:
             if sector == path_var["sector"]:
                 path_var["height"] += amount / path_var["width"]
@@ -116,17 +101,15 @@ class river:
 
             # Effective heights include terrain
             effective_height_cur = (
-                cur_sector.base_height + current["height"]
+                cur_sector.altitude + current["height"]
             )
             effective_height_down = (
-                down_sector.base_height + downstream["height"]
+                down_sector.altitude + downstream["height"]
             )
 
             # No downhill flow → no transfer
             if effective_height_cur <= effective_height_down:
                 continue
-
-            # Height differential drives flow
             height_diff = effective_height_cur - effective_height_down
 
             # Limit transfer per turn (inertia)
@@ -157,21 +140,24 @@ class river:
 
 
 class dam:
-    def __init__(self, name, capacity, cap_used, cost, fail_prob, river, coords, state):
+    def __init__(self, name, capacity, cap_used, cost, fail_prob, river, sector, state):
         self.name = name
         self.capacity = capacity
         self.cap_used = cap_used
         self.cost = cost
         self.fail_prob = fail_prob
         self.river = river
-        self.coords = coords
+        self.sector = sector
         self.state = state
+
+    def activate(self):
+        pass
 
     def fail(self):
         prob = self.fail_prob * self.cap_used / self.capacity
         chance = rng.chance(prob)
         if chance:
-            self.river.flood(self.capacity, self.coords)
+            self.river.add_water(self.sector_name, self.capacity)
             self.state = "Failed"
 
 
