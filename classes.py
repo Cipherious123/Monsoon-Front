@@ -70,8 +70,8 @@ class sector:
 class river:
     def __init__(self, name, path, terminal):
         self.name = name
-        self.path = path #[{sector, width, max_height, height}, {}...]
-        self.terminal = terminal #(river, sector)
+        self.path = path #[{sector:, width:, max_height, height}, {}...]
+        self.terminal = terminal #(river, sector index in terminal river's path)
     
     def add_water(self, sector, amount):
         """
@@ -87,57 +87,98 @@ class river:
         Propagates flood water along the river path.
         Called once per turn.
         """
+        BASE_MAX_TRANSFER_FRACTION = 0.25
+        BASE_FLOW_COEFFICIENT = 0.6
+        FLOOD_SPILL_FACTOR = 0.3
 
-        MAX_TRANSFER_FRACTION = 0.25     # Max % of height transferable per turn
-        FLOW_COEFFICIENT = 0.6            # Controls aggressiveness of flow
-        FLOOD_SPILL_FACTOR = 0.3          # How much overflow spills into sector
-
+        # --- INTERNAL RIVER PROPAGATION ---
         for i in range(len(self.path) - 1):
             current = self.path[i]
             downstream = self.path[i + 1]
 
-            cur_sector = current["sector"]
-            down_sector = downstream["sector"]
+            cur_h = current["height"]
+            down_h = downstream["height"]
 
-            # Effective heights include terrain
-            effective_height_cur = (
-                cur_sector.altitude + current["height"]
-            )
-            effective_height_down = (
-                down_sector.altitude + downstream["height"]
-            )
-
-            # No downhill flow → no transfer
-            if effective_height_cur <= effective_height_down:
+            # No flow if no pressure
+            if cur_h <= down_h:
                 continue
-            height_diff = effective_height_cur - effective_height_down
+            
+            altitude_modifier = (current["sector"].altitude - downstream["sector"].altitude) / 400
+            max_fraction_transfer = (
+                cur_h * BASE_MAX_TRANSFER_FRACTION * altitude_modifier
+            )
 
-            # Limit transfer per turn (inertia)
-            max_transfer = current["height"] * MAX_TRANSFER_FRACTION
+            raw_transfer = (
+                (cur_h - down_h) * BASE_FLOW_COEFFICIENT * altitude_modifier
+            )
+
+            # --- CRITICAL INVARIANT ---
+            # Never allow gradient reversal
+            max_safe_transfer = (cur_h - down_h) / 2
+
             transfer = min(
-                max_transfer,
-                height_diff * FLOW_COEFFICIENT
+                max_fraction_transfer,
+                raw_transfer,
+                max_safe_transfer
             )
 
             if transfer <= 0:
                 continue
 
-            # Apply transfer
             current["height"] -= transfer
             downstream["height"] += transfer
 
-            # Check overflow in downstream
-            overflow = max(
-                0,
-                downstream["height"] - downstream["max_height"]
-            )
-
+            # Spill if downstream exceeds capacity
+            overflow = max(0, downstream["height"] - downstream["max_height"])
             if overflow > 0:
-                # Spill into sector (floodplain)
                 spilled = overflow * FLOOD_SPILL_FACTOR
                 downstream["height"] -= spilled
-                down_sector.flooded += spilled
+                downstream["sector"].flooded += spilled*current["width"]
 
+        # --- TERMINAL HANDLING ---
+        terminal_river, terminal_sector = self.terminal
+        tail = self.path[-1]
+
+        if tail["height"] <= 0:
+            return
+
+        # CASE 1: Tributary joins another river
+        if terminal_river is not None:
+            target = terminal_river.path[0]
+
+            tail_h = tail["height"]
+            target_h = target["height"]
+
+            if tail_h > target_h:
+                altitude_modifier = (tail["sector"].altitude - target_h.altitude) / 400
+
+                max_fraction_transfer = (
+                    tail_h * BASE_MAX_TRANSFER_FRACTION * altitude_modifier
+                )
+
+                raw_transfer = (
+                    (tail_h - target_h)
+                    * BASE_FLOW_COEFFICIENT
+                    * altitude_modifier
+                )
+
+                max_safe_transfer = (tail_h - target_h) / 2
+
+                transfer = min(
+                    max_fraction_transfer,
+                    raw_transfer,
+                    max_safe_transfer
+                )
+
+                if transfer > 0:
+                    tail["height"] -= transfer
+                    target["height"] += transfer
+
+                    overflow = max(0, target["height"] - target["max_height"])
+                    if overflow > 0:
+                        spilled = overflow * FLOOD_SPILL_FACTOR 
+                        target["height"] -= spilled
+                        target["sector"].flooded += spilled * tail["width"]
 
 class dam:
     def __init__(self, name, capacity, cap_used, cost, fail_prob, river, sector, state):
@@ -150,7 +191,7 @@ class dam:
         self.sector = sector
         self.state = state
 
-    def activate(self):
+    def control(self):
         pass
 
     def fail(self):
@@ -162,4 +203,5 @@ class dam:
 
 
 
-game_map = {sector("Guwahati", 3000000, 100, 30, 100, 0, 100): (0,0)}
+game_map = {"Guwahati" : sector("Guwahati", 3000000, 100, 30, 100, 0, 100, (0,0))}
+rivers = {"Brahmaputra": river("Brahmaputra", {"Guwahati": ()}, ())}

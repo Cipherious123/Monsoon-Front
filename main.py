@@ -113,9 +113,19 @@ def helicopter_rescue(): #Incomplete!
 def evac():
     pass
 
-commands = {"quit": quitting, "show-boats": show_boats, 
+def show_health():
+    pass
+
+def flood_sector():
+    pass
+
+def control_dam():
+    pass
+
+commands = {"quit-game": quitting, "show-boats": show_boats, 
             "show-dams": show_dams,"deploy-boats": deploy_boats, "build-dam": build_dam, 
-            "deploy-food": deploy_food, "call_evac": evac}
+            "deploy-food": deploy_food, "call-evac": evac, "show-health": show_health, "flood-sector": flood_sector,
+             "control-dam": control_dam, "deploy-heli": helicopter_rescue}
 
 def generate_rainfall(
     sectors,
@@ -123,11 +133,12 @@ def generate_rainfall(
     correlation_radius=5.0
 ):
     """
-    Generate spatially correlated rainfall for sectors.
+    ***Generate spatially correlated rainfall for sectors.***
+    -------------------------------------------------------------------------
 
     Args:
         sectors (dict):
-            sector_id -> (x, y)
+            sector_id -> sector
         turn_number (int)
         max_turns (int)
         correlation_radius (float): higher = smoother rainfall
