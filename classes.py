@@ -1,8 +1,10 @@
 import random
 
 #sprites
-map_spt = "s"
-boat_spt = "s"
+map_spt = "templates/arunachal.jpg"
+boat_spt = "templates/sprite boat 1.png"
+town_spt = "templates/small china town.jpg"
+village_spt = "templates/small china town.jpg"
 
 class GameRNG:
     def __init__(self, seed):
@@ -13,7 +15,7 @@ class GameRNG:
 
 rng = GameRNG(8)
 class sector:
-    def __init__(self, name,  population, power, absorption, infra, slope, health, coords):
+    def __init__(self, name,  population, power, absorption, infra, slope, coords):
         self.name = name
         self.population = population
         self.power = power
@@ -21,7 +23,7 @@ class sector:
         self.infra = infra
         self.slope = slope
         self.flooded = 0
-        self.health = health
+        self.health = 1
         self.deaths = 0
         self.coords = coords
 
@@ -82,7 +84,7 @@ class river:
                 path_var["height"] += amount / path_var["width"]
                 break
         
-    def flood_propagate(self):
+    def flood_propagate(self): #Have to add dam manipulation also
         """
         Propagates flood water along the river path.
         Called once per turn.
@@ -202,6 +204,34 @@ class dam:
             self.state = "Failed"
 
 
+lst = [sector("Upper Siang", 35000, 0.20, 0.75, 0.20, 3500, (0,0)),
+sector( "East Siang", 100000, 0.30, 0.70, 0.30, 300, (0,0)),
+sector( "Upper Dibang Valley", 8000, 0.15, 0.80, 0.15, 4000, (0,0)),
+sector( "Lower Dibang Valley", 60000, 0.25, 0.70, 0.25, 300, (0,0)),
+sector( "Lohit", 150000, 0.35, 0.65, 0.30, 400, (0,0)),
+sector( "Lower Subansiri", 83000, 0.30, 0.68, 0.28, 600, (0,0)),
 
-game_map = {"Guwahati" : sector("Guwahati", 3000000, 100, 30, 100, 0, 100, (0,0))}
+sector( "Tinsukia", 1300000, 0.75, 0.40, 0.65, 120, (0,0)),
+sector( "Dibrugarh", 1320000, 0.80, 0.38, 0.70, 110, (0,0)),
+sector( "Dhemaji", 690000, 0.35, 0.55, 0.30, 105, (0,0)),
+sector( "Lakhimpur", 1050000, 0.40, 0.50, 0.35, 100, (0,0)),
+
+sector( "Jorhat", 1100000, 0.60, 0.45, 0.55, 90, (0,0)),
+sector( "Golaghat", 1060000, 0.55, 0.48, 0.50, 95, (0,0)),
+sector( "Sonitpur", 1900000, 0.65, 0.42, 0.55, 80, (0,0)),
+sector( "Biswanath", 610000, 0.45, 0.50, 0.40, 85, (0,0)),
+
+sector( "Nagaon", 2800000, 0.60, 0.40, 0.50, 70, (0,0)),
+sector( "Morigaon", 960000, 0.45, 0.52, 0.40, 65, (0,0)),
+sector( "Kamrup Rural", 1500000, 0.55, 0.38, 0.45, 60, (0,0)),
+sector( "Guwahati", 1200000, 0.95, 0.20, 0.90, 55, (0,0)),
+sector( "Majuli", 170000, 0.30, 0.60, 0.25, 85, (0,0))
+]
+game_map = {}
+boats = {}
+for l in lst:
+    game_map[l.name] = l
+    boats[l.name] = {"inactive": 0, "active": 0, "locked": 0}
+
+boats["Guwahati"] = 1000
 rivers = {"Brahmaputra": river("Brahmaputra", {"Guwahati": ()}, ())}

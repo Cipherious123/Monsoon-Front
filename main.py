@@ -12,36 +12,38 @@ The Indian Meterological department predicts severe rains and perhaps flooding o
 in Arunachal Pradesh and Assam. You've been asked to manage the floods, evacuate as required, and save lives.
 """)
 
-start = input("Do you accept the mission (Yes/No) ")
+#start = input("Do you accept the mission (Yes/No) ")
+start = "Yes"
 if start.lower() == "no":
     print("Alright. Maybe some other time")
     sys.exit()
 print("Tutorial ...")
 
 graphics.load_map(classes.map_spt)
-home_spt = {}
+home_spt = []
 
-for sector in classes.game_map:
-    if sector.population < 100000:
+for sector_name in classes.game_map:
+    if classes.game_map[sector_name].population < 100000:
         spt = classes.village_spt
-    elif sector.population < 1000000:
+    elif classes.game_map[sector_name].population < 1000000:
         spt = classes.town_spt
     else:
         spt = classes.village_spt
 
-    home_spt[spt] = sector.coords
-    graphics.set_sprites({spt:sector.coords})
+    home_spt.append({"image": spt, "pos": classes.game_map[sector_name].coords})
+graphics.set_sprites(home_spt)
 
 graphics.gui_tick()
 
 game_time = 1
-boats = {"Guwahati" : {"inactive": 1000, "active": 0, "locked": 0}}
-dams = [classes.dam("Ranganadi", 10000, 3000, 35, 0.15, "Subansiri", "Upper Subansiri", "Built")]
-potential_dams = [classes.dam("Ranganadi", 10000, 3000, 35, 0.15, "Subansiri", "Upper Subansiri", "Unbuilt")]
+dams = [classes.dam("Ranganadi", 10000, 3000, 0, 0.15, "Brahmaputra", classes.game_map["Guwahati"], "Built")]
+potential_dams = [classes.dam("Ranganadi", 10000, 3000, 35, 0.15, "Brahmaputra", classes.game_map["Guwahati"], "Unbuilt")]
 political = 100
-money = 100
+money = 1000
+morale = 100
 helicopter = 2
 rain_history = []
+deaths = 0
 
 def quitting():
     confirm = input("Input QWERTY to quit. Progress won't be saved ")
@@ -61,12 +63,12 @@ def deploy_boats():
     x = int(input("Input x "))
     A = int(input("Input A "))
 
-    if boats[A]["active"] < x:
+    if classes.boats[A]["active"] < x:
         print("Insufficient boats to reassign in A")
     else: 
         B = int(input("Input B "))
-        boats[A]["active"] -= x
-        boats[B]["locked"] += x
+        classes.boats[A]["active"] -= x
+        classes.boats[B]["locked"] += x
         print(f"Your boats are now in {B}. They cannot be activated to rescue people in this turn.")
 
 def build_dam():
@@ -113,18 +115,26 @@ def helicopter_rescue(): #Incomplete!
 def evac():
     pass
 
-def show_health():
-    pass
-
 def flood_sector():
     pass
 
 def control_dam():
-    pass
+    dam_name = input("Name of dam to control: ")
+    if dam_name not in dams:
+        print("Dam not found")
+        return
+
+    amt = float(input("Amount of water to release"))
+    if amt > dams[dam_name].cap_used:
+        print("Amount is greater than water held by reservoir! Releasing all the water")
+        amt = dams[dam_name].cap_used
+    
+    dams[dam_name].cap_used -= amt
+    dams[dam_name].river.add_water(dams[dam_name].sector, amt)
 
 commands = {"quit-game": quitting, "show-boats": show_boats, 
             "show-dams": show_dams,"deploy-boats": deploy_boats, "build-dam": build_dam, 
-            "deploy-food": deploy_food, "call-evac": evac, "show-health": show_health, "flood-sector": flood_sector,
+            "deploy-food": deploy_food, "call-evac": evac, "flood-sector": flood_sector,
              "control-dam": control_dam, "deploy-heli": helicopter_rescue}
 
 def generate_rainfall(
@@ -214,7 +224,7 @@ def inter_turn_recovery():
     boats_gained = int((1 + death_factor) * random.choice([0, 1, 2]))
     helicopters_gained = 2 if random.random() < (political / 200) else 0
 
-    boats["Guwahati"]["inactive"] += boats_gained
+    classes.boats["Guwahati"]["inactive"] += boats_gained
     helicopters += helicopters_gained
     deaths = 0
 
@@ -371,7 +381,7 @@ def run_turn():
         else:
             commands[command.lower()]()
         
-    generate_rainfall(game_time, rain_history)
+    generate_rainfall(classes.game_map, rain_history)
     for dam in dams:
         dam.fail()
 
@@ -379,9 +389,11 @@ def run_turn():
         river.flood_propagate()
 
     deaths = 0
-    for sector_name in classes.gamemap:
-        classes.gamemap[sector].flood()
-        deaths += classes.gamemap[sector].deaths
+    for sector_name in classes.game_map:
+        classes.game_map[sector_name].flood()
+        deaths += classes.game_map[sector_name].deaths
     
     inter_turn_recovery()
     random_events_between_turns()
+
+run_turn()
