@@ -5,6 +5,7 @@ map_spt = "templates/arunachal.jpg"
 boat_spt = "templates/sprite boat 1.png"
 town_spt = "templates/small china town.jpg"
 village_spt = "templates/small china town.jpg"
+ind_spt = "templates/logo.jpg"
 
 class GameRNG:
     def __init__(self, seed):
@@ -15,13 +16,13 @@ class GameRNG:
 
 rng = GameRNG(8)
 class sector:
-    def __init__(self, name,  population, power, absorption, infra, slope, coords):
+    def __init__(self, name,  population, power, absorption, infra, altitude, coords):
         self.name = name
         self.population = population
         self.power = power
         self.absorption = absorption
         self.infra = infra
-        self.slope = slope
+        self.altitude = altitude
         self.flooded = 0
         self.health = 1
         self.deaths = 0
@@ -233,5 +234,5 @@ for l in lst:
     game_map[l.name] = l
     boats[l.name] = {"inactive": 0, "active": 0, "locked": 0}
 
-boats["Guwahati"] = 1000
+boats["Guwahati"]["active"] = 1000
 rivers = {"Brahmaputra": river("Brahmaputra", {"Guwahati": ()}, ())}

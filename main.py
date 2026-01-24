@@ -3,6 +3,20 @@ import graphics
 import sys
 import random
 import math
+import threading
+import queue
+
+command_queue = queue.Queue()
+
+def terminal_input_loop():
+    while True:
+        cmd = input("Issue your command ")
+        command_queue.put(cmd)
+
+threading.Thread(
+    target=terminal_input_loop,
+    daemon=True
+).start()
 
 #Starting the game 
 print("""
@@ -17,7 +31,16 @@ start = "Yes"
 if start.lower() == "no":
     print("Alright. Maybe some other time")
     sys.exit()
-print("Tutorial ...")
+
+game_time = 1
+dams = [classes.dam("Ranganadi", 10000, 3000, 0, 0.15, "Brahmaputra", classes.game_map["Guwahati"], "Built")]
+potential_dams = [classes.dam("Ranganadi", 10000, 3000, 35, 0.15, "Brahmaputra", classes.game_map["Guwahati"], "Unbuilt")]
+political = 100
+money = 1000
+morale = 100
+helicopter = 2
+rain_history = []
+deaths = 0
 
 graphics.load_map(classes.map_spt)
 home_spt = []
@@ -30,20 +53,36 @@ for sector_name in classes.game_map:
     else:
         spt = classes.village_spt
 
-    home_spt.append({"image": spt, "pos": classes.game_map[sector_name].coords})
-graphics.set_sprites(home_spt)
+    click_text = f"""{sector_name} - 
+                    Population : {classes.game_map[sector_name].population}
+                    Health : {classes.game_map[sector_name].health}
+                    Infrastructure : {classes.game_map[sector_name].infra}
+                    Altitude : {classes.game_map[sector_name].altitude}
+                    Flood level: {classes.game_map[sector_name].flooded}
+                    Absorption index: {classes.game_map[sector_name].absorption}
+                    Political importance: {classes.game_map[sector_name].power}
+                    Flood deaths so far: {classes.game_map[sector_name].deaths}
+                    Evacuation warning: ???
+                    """
+    
+    home_spt.append({(spt, "-", click_text): classes.game_map[sector_name].coords})
+
+click_text = f""" Money : {money}
+                  Political power : {political}
+                  Turn number: {game_time}
+                  Deaths so far: {deaths}
+                  Click "t" to get a tutorial
+                  List of Commands - "quit-game": quitting, "show-boats": show_boats, 
+                    "show-dams": show_dams,"deploy-boats": deploy_boats, "build-dam": build_dam, 
+                    "deploy-food": deploy_food, "call-evac": evac, "flood-sector": flood_sector,
+                    "control-dam": control_dam, "deploy-heli": deploy_helicopter, "end-turn"
+
+"""
+home_spt.append({(classes.ind_spt, "general stats", click_text): (500, 20)})
+graphics.set_sprites_with_labels(home_spt)
 
 graphics.gui_tick()
 
-game_time = 1
-dams = [classes.dam("Ranganadi", 10000, 3000, 0, 0.15, "Brahmaputra", classes.game_map["Guwahati"], "Built")]
-potential_dams = [classes.dam("Ranganadi", 10000, 3000, 35, 0.15, "Brahmaputra", classes.game_map["Guwahati"], "Unbuilt")]
-political = 100
-money = 1000
-morale = 100
-helicopter = 2
-rain_history = []
-deaths = 0
 
 def quitting():
     confirm = input("Input QWERTY to quit. Progress won't be saved ")
@@ -59,9 +98,11 @@ def show_dams():
     pass
 
 def deploy_boats():
+    global money
+
     print("You are reassigning x boats from sector A to sector B")
     x = int(input("Input x "))
-    A = int(input("Input A "))
+    A = input("Input A ")
 
     if classes.boats[A]["active"] < x:
         print("Insufficient boats to reassign in A")
@@ -72,6 +113,7 @@ def deploy_boats():
         print(f"Your boats are now in {B}. They cannot be activated to rescue people in this turn.")
 
 def build_dam():
+    global money
     dam_build = input("Name of dam to build")
     if dam_build not in potential_dams:
         print("Dam not found. Check your spelling!")
@@ -85,6 +127,7 @@ def build_dam():
         del potential_dams[dam_build]
 
 def deploy_food():
+    global money
     print("You are deploying food to areas affected by floods")
 
     c = input("Enter the name of the sector you want to input")
@@ -99,6 +142,7 @@ def deploy_food():
         classes.game_map[c].health += y*0.02
 
 def helicopter_rescue(): #Incomplete!
+    global money
     print("This choice is for emergency evacuation where other modes of evacuation may not be effective.")
 
     sec_name = input("Enter the name of the sector you want to input")
@@ -140,69 +184,82 @@ commands = {"quit-game": quitting, "show-boats": show_boats,
 def generate_rainfall(
     sectors,
     turn_number,
-    correlation_radius=5.0
-):
+    correlation_radius=5.0):
     """
     ***Generate spatially correlated rainfall for sectors.***
     -------------------------------------------------------------------------
-
     Args:
         sectors (dict):
             sector_id -> sector
         turn_number (int)
-        max_turns (int)
         correlation_radius (float): higher = smoother rainfall
-
     Returns:
         dict:
             sector_id -> rainfall amount (float)
     """
-
     # ---- Game phase (0 = early, 1 = late) ----
     phase = min(1.0, turn_number / 10)
-
-    # ---- Phase-based probabilities ----
-    # Early: consistently high rain
-    # Late: more variance, extremes & droughts
+    
+    # ---- Phase-based parameters ----
     base_mean = (1 - phase) * 5.0 + phase * 3.0
-    base_variance = (1 - phase) * 1.0 + phase * 4.0
-
-    cyclone_prob = 0.05 + phase * 0.20
-    low_rain_prob = phase * 0.25
-
+    cyclone_prob = 0.05 + phase * 0.15
+    low_rain_prob = phase * 0.20
+    
     # ---- Decide global weather mode ----
     roll = random.random()
-
     if roll < cyclone_prob:
-        global_intensity = random.uniform(10.0, 18.0)
+        mode = "cyclone"
+        global_base = random.uniform(8.0, 12.0)
     elif roll < cyclone_prob + low_rain_prob:
-        global_intensity = random.uniform(0.3, 1.2)
+        mode = "drought"
+        global_base = random.uniform(0.5, 1.5)
     else:
-        global_intensity = random.gauss(base_mean, base_variance)
-
-    # ---- Generate spatial noise anchors ----
-    anchor_count = max(3, len(sectors) // 6)
+        mode = "normal"
+        global_base = base_mean
+    
+    # ---- Generate MORE spatial noise anchors with STRONGER influence ----
+    anchor_count = max(8, len(sectors) // 3)  # More anchors
     anchors = []
-
+    sector_list = list(sectors.values())
+    
     for _ in range(anchor_count):
-        ax, ay = random.choice(list(sectors.values()))
-        strength = random.uniform(-2.0, 2.0)
+        ax, ay = random.choice(sector_list).coords
+        # Much stronger local variations
+        if mode == "cyclone":
+            strength = random.uniform(2.0, 8.0)  # Extra rainfall pockets
+        elif mode == "drought":
+            strength = random.uniform(-1.0, 0.5)  # Slight variations in drought
+        else:
+            strength = random.uniform(-3.0, 3.0)  # Normal variation
         anchors.append((ax, ay, strength))
-
+    
     # ---- Allocate rainfall to sectors ----
     rainfall_map = {}
-
-    for sector_id, (sx, sy) in sectors.items():
-        influence = 0.0
-
+    
+    for sector_id, sector in sectors.items():
+        # Calculate weighted influence from all anchors
+        total_influence = 0.0
+        total_weight = 0.0
+        
         for ax, ay, strength in anchors:
-            dist = math.hypot(sx - ax, sy - ay)
+            dist = math.hypot(sector.coords[0] - ax, sector.coords[1] - ay)
             weight = math.exp(-dist / correlation_radius)
-            influence += strength * weight
-
-        rainfall = max(0.0, global_intensity + influence)
+            total_influence += strength * weight
+            total_weight += weight
+        
+        # Normalize influence and add local randomness
+        if total_weight > 0:
+            avg_influence = total_influence / total_weight
+        else:
+            avg_influence = 0.0
+        
+        # Add small local noise for organic feel
+        local_noise = random.gauss(0, 0.5)
+        
+        # Combine global base with local spatial variation
+        rainfall = max(0.0, global_base + avg_influence + local_noise)
         rainfall_map[sector_id] = rainfall
-
+    
     return rainfall_map
 
 def inter_turn_recovery():
@@ -228,160 +285,17 @@ def inter_turn_recovery():
     helicopters += helicopters_gained
     deaths = 0
 
-def random_events_between_turns(player, sectors):
-    """
-    Creates random inter-turn events.
-    Modifies player and sector stats directly.
-    Returns a list of event descriptions for logging/UI.
-    """
 
-    event_log = []
+def end_turn():     
+    for sector_name in classes.boats:
+        classes.boats["inactive"] += classes.boats["locked"]
+        classes.boats["locked"] = 0
 
-    # Number of events this turn (keeps game unpredictable)
-    num_events = random.choices([0, 1, 2], weights=[2, 5, 3])[0]
+    rainfall_map = generate_rainfall(classes.game_map, rain_history)
+    for sector_name in classes.game_map:
+        classes.game_map[sector_name].flooded(rainfall_map[sector_name]*10)
+    
 
-    if num_events == 0:
-        return ["No major incidents reported this turn."]
-
-    for _ in range(num_events):
-
-        event_type = random.choice([
-            "political_visit",
-            "illegal_immigration",
-            "disease_outbreak",
-            "media_expose",
-            "ngo_aid",
-            "boat_breakdown"
-        ])
-
-        # Pick a sector if required
-        sector = random.choice(sectors)
-        severity = random.uniform(0.5, 1.5)
-
-        # -------------------------
-        # POLITICAL VISIT
-        # -------------------------
-        if event_type == "political_visit":
-            cost = int(20 * severity)
-            gain = int(10 * severity)
-
-            if money >= cost:
-                money -= cost
-                political = min(100, political + gain)
-                sector.infra += 2
-                event_log.append(
-                    f"Political visit in {sector.name}. Money spent: {cost}. "
-                    f"Political power +{gain}, infra improved."
-                )
-            else:
-                political -= 5
-                event_log.append(
-                    f"Political visit mishandled in {sector.name}. "
-                    f"Public anger rises. Political power -5."
-                )
-
-        # -------------------------
-        # ILLEGAL IMMIGRATION CRISIS
-        # -------------------------
-        elif event_type == "illegal_immigration":
-            influx = int(1000 * severity)
-            sector.population += influx
-            sector.health -= 5 * severity
-            political -= 3
-
-            event_log.append(
-                f"Illegal immigration reported in {sector.name}. "
-                f"Population +{influx}, health worsens, political backlash."
-            )
-
-        # -------------------------
-        # DISEASE OUTBREAK
-        # -------------------------
-        elif event_type == "disease_outbreak":
-            if sector.flood_level > 0.3:
-                deaths = int(sector.population * 0.002 * severity)
-                sector.deaths += deaths
-                sector.health -= 10 * severity
-
-                # Player response cost
-                response_cost = int(30 * severity)
-                if money >= response_cost:
-                    money -= response_cost
-                    sector.health += 8
-                    event_log.append(
-                        f"Disease outbreak in {sector.name}. {deaths} deaths. "
-                        f"Funds spent controlling outbreak."
-                    )
-                else:
-                    sector.deaths += int(deaths * 0.5)
-                    political -= 5
-                    event_log.append(
-                        f"Disease outbreak worsens in {sector.name} due to lack of funds."
-                    )
-            else:
-                event_log.append(
-                    f"Minor disease scare in {sector.name}, no major impact."
-                )
-
-        # -------------------------
-        # MEDIA EXPOSE
-        # -------------------------
-        elif event_type == "media_expose":
-            loss = int(8 * severity)
-            political -= loss
-
-            if money >= 15:
-                money -= 15
-                political += 5
-                event_log.append(
-                    "Media exposes relief inefficiencies. "
-                    "Damage control attempted."
-                )
-            else:
-                event_log.append(
-                    "Media exposes relief failures. "
-                    f"Political power -{loss}."
-                )
-
-        # -------------------------
-        # NGO AID
-        # -------------------------
-        elif event_type == "ngo_aid":
-            heal = int(10 * severity)
-            sector.health += heal
-            political += 20
-            event_log.append(
-                f"NGOs assist in {sector.name}. Health +{heal}, money +20."
-            )
-
-        # -------------------------
-        # BOAT BREAKDOWN (GAME-WIDE)
-        # -------------------------
-        elif event_type == "boat_breakdown":
-            if player.boats > 0:
-                lost = random.choice([0, 1])
-                player.boats -= lost
-                event_log.append(
-                    f"Rescue boat breakdown reported. Boats lost: {lost}."
-                )
-            else:
-                event_log.append(
-                    "Boat maintenance issues reported, but no boats left to lose."
-                )
-
-    return event_log
-
-def run_turn():
-    while True:
-        command = input("Issue your command ")
-        if command == "end-turn":
-            break
-        if command not in commands:
-            print("Invalid command")
-        else:
-            commands[command.lower()]()
-        
-    generate_rainfall(classes.game_map, rain_history)
     for dam in dams:
         dam.fail()
 
@@ -394,6 +308,20 @@ def run_turn():
         deaths += classes.game_map[sector_name].deaths
     
     inter_turn_recovery()
-    random_events_between_turns()
 
-run_turn()
+def handle_command(command):
+    if command == "end-turn":
+        end_turn()
+        return
+
+    if command not in commands:
+        print("Invalid command")
+    else:
+        commands[command.lower()]()
+
+while True:
+    graphics.gui_tick()
+
+    if not command_queue.empty():
+        command = command_queue.get()
+        handle_command(command)
