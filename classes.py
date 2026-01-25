@@ -5,7 +5,7 @@ map_spt = "templates/arunachal.jpg"
 boat_spt = "templates/sprite boat 1.png"
 town_spt = "templates/small china town.jpg"
 village_spt = "templates/small china town.jpg"
-ind_spt = "templates/logo.jpg"
+ind_spt = "templates/arunachal.jpg"
 
 class GameRNG:
     def __init__(self, seed):
@@ -27,6 +27,7 @@ class sector:
         self.health = 1
         self.deaths = 0
         self.coords = coords
+        self.evac = 0
 
     def flood(self):
         """
@@ -68,6 +69,73 @@ class sector:
 
         self.political_power -= political_loss
         self.political_power = max(self.political_power, 0)
+
+    def evacuation(self):
+        """
+        Progress evacuation for one turn.
+        Reduces population in this sector and redistributes evacuees
+        to nearby non-evacuated sectors based on distance.
+        """
+
+        if self.evac <= 0 or self.population <= 0:
+            return 
+
+        # --- Time decay (front-loaded evacuation) ---
+        base_fraction = 0.45 / self.evac
+
+        # ---Constraint ---
+        infra_factor = max(0.0, min(1.0, self.infra))
+        flood_factor = 1 / (1 + max(0, self.flooded))
+
+        evac_fraction = base_fraction * infra_factor * flood_factor
+        evac_fraction = min(evac_fraction, 0.6)
+
+        evacuees = int(self.population * evac_fraction)
+        evacuees = min(evacuees, self.population)
+
+        if evacuees <= 0:
+            self.evac += 1
+            return 
+        self.population -= evacuees
+
+        # --- Find valid destination sectors ---
+        sx, sy = self.coords
+        candidates = []
+
+        for sector in game_map.values():
+            if sector is self:
+                continue
+            if sector.evac > 0:
+                continue
+
+            dx = sector.coords[0] - sx
+            dy = sector.coords[1] - sy
+            dist = (dx**2 + dy**2)**0.5
+
+            if dist > 0:
+                candidates.append((sector, dist))
+
+        # --- Redistribute evacuees ---
+        if candidates:
+            weights = [1 / dist for _, dist in candidates]
+            total_weight = sum(weights)
+
+            distributed = 0
+
+            for (sector, _), weight in zip(candidates, weights):
+                share = int(evacuees * (weight / total_weight))
+                sector.population += share
+                distributed += share
+
+            # Handle rounding leftovers → Guwahati
+            leftover = evacuees - distributed
+            if leftover > 0:
+                game_map["Guwahati"].population += leftover
+
+        self.evac += 1
+
+    def absorb(self):
+        self.flooded -= self.absorption*2
 
 
 class river:
@@ -231,6 +299,8 @@ sector( "Majuli", 170000, 0.30, 0.60, 0.25, 85, (0,0))
 game_map = {}
 boats = {}
 for l in lst:
+    coords = (random.randint(0, 1200), random.randint(0, 700))
+    l.coords = coords
     game_map[l.name] = l
     boats[l.name] = {"inactive": 0, "active": 0, "locked": 0}
 
