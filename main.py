@@ -4,21 +4,6 @@ import sys
 import random
 import math
 import threading
-import queue
-
-command_queue = queue.Queue()
-
-def terminal_input_loop():
-    while True:
-        cmd = input("Issue your command ")
-        command_queue.put(cmd)
-
-threading.Thread(
-    target=terminal_input_loop,
-    daemon=True
-).start()
-
-#Starting the game 
 print("""
 Welcome to Monsoon Front!
 Today, you got a call from the chief advisor to PM Narendra Modi.
@@ -26,15 +11,7 @@ The Indian Meterological department predicts severe rains and perhaps flooding o
 in Arunachal Pradesh and Assam. You've been asked to manage the floods, evacuate as required, and save lives.
 """)
 
-#start = input("Do you accept the mission (Yes/No) ")
-start = "Yes"
-if start.lower() == "no":
-    print("Alright. Maybe some other time")
-    sys.exit()
-
 game_time = 1
-dams = [classes.dam("Ranganadi", 10000, 3000, 0, 0.15, "Brahmaputra", classes.game_map["Guwahati"], "Built")]
-potential_dams = [classes.dam("Ranganadi", 10000, 3000, 35, 0.15, "Brahmaputra", classes.game_map["Guwahati"], "Unbuilt")]
 political = 100
 money = 1000
 morale = 100
@@ -42,47 +19,8 @@ heli = 2
 locked_heli = 0
 rain_history = []
 deaths = 0
-
-graphics.load_map(classes.map_spt)
+dam_q = []
 home_spt = []
-
-for sector_name in classes.game_map:
-    if classes.game_map[sector_name].population < 100000:
-        spt = classes.village_spt
-    elif classes.game_map[sector_name].population < 1000000:
-        spt = classes.town_spt
-    else:
-        spt = classes.village_spt
-
-    click_text = f"""{sector_name} - 
-                    Population : {classes.game_map[sector_name].population}
-                    Health : {classes.game_map[sector_name].health}
-                    Infrastructure : {classes.game_map[sector_name].infra}
-                    Altitude : {classes.game_map[sector_name].altitude}
-                    Flood level: {classes.game_map[sector_name].flooded}
-                    Absorption index: {classes.game_map[sector_name].absorption}
-                    Political importance: {classes.game_map[sector_name].power}
-                    Flood deaths so far: {classes.game_map[sector_name].deaths}
-                    Evacuation warning: ???
-                    """
-    
-    home_spt.append({(spt, "-", click_text): classes.game_map[sector_name].coords})
-
-click_text = f""" Money : {money}
-                  Political power : {political}
-                  Turn number: {game_time}
-                  Deaths so far: {deaths}
-                  Click "t" to get a tutorial
-                  List of Commands - "quit-game": quitting, "show-boats": show_boats, 
-                    "show-dams": show_dams,"deploy-boats": deploy_boats, "build-dam": build_dam, 
-                    "deploy-food": deploy_food, "call-evac": evac, "flood-sector": flood_sector,
-                    "control-dam": control_dam, "deploy-heli": deploy_helicopter, "end-turn"
-
-"""
-home_spt.append({(classes.ind_spt, "general stats", click_text): (500, 20)})
-graphics.set_sprites_with_labels(home_spt)
-
-graphics.gui_tick()
 
 
 def quitting():
@@ -93,14 +31,101 @@ def quitting():
         print("Continuing with the game")
 
 def show_boats():
-    pass
+    boat_spts = []
+    for sec in classes.boats:
+        dicty = classes.boats[sec]
+        if sum(dicty.values()) == 0:
+            continue
 
-def show_dams():
-    pass
+        spt = classes.boat_spt
+        coords = classes.game_map[sec].coords
+        text = f"Inactive: {dicty["inactive"]}, Active: {dicty["active"]}, Locked (for 1 turn): {dicty["locked"]}" 
+        boat_spts.append({(spt, text): coords})
+
+    graphics.set_sprites_with_labels(boat_spts)
+    print("Action completed")
+
+
+def show_dams(print_message = True):
+    dams_spts = []
+    sidebar_text = ""
+    for dam_name in classes.dams:
+        dam_ = classes.dams[dam_name]
+        coords = dam_.sector.coords
+        text = f"""Capacity: {dam_.capacity}
+Capacity used: {dam_.cap_used}
+Failure Probability: {dam_.fail_prob}"""
+        dams_spts.append({(classes.dam_spt, text): coords})
+
+    for dam_name in classes.pot_dams:
+        dam_ = classes.pot_dams[dam_name]
+        coords = dam_.sector.coords
+        text = f"""Potential Capacity: {dam_.capacity}
+Capacity used: N/A
+Failure Probability: {dam_.fail_prob}"""
+        if dam_.state == "Construction":
+            text += "\n Under Construction"
+
+        dams_spts.append({(classes.pot_dam_spt, text): coords})
+
+        sidebar_text += f"""{dam_name}
+Cost to build: {dam_.cost}
+Time to build: {dam_.build_time}
+Failure probability: {dam_.fail_prob}
+"""
+        
+    graphics.set_sidebar_data(sidebar_text)
+    graphics.set_sprites_with_labels(dams_spts)
+    if print_message:
+        print("Action Completed")
+
+def show_home():
+    for sector_name in classes.game_map:
+        if classes.game_map[sector_name].population < 100000:
+            spt = classes.village_spt
+        elif classes.game_map[sector_name].population < 1000000:
+            spt = classes.town_spt
+        else:
+            spt = classes.village_spt
+
+        label_text = f"""{sector_name} - 
+                        Population : {classes.game_map[sector_name].population}
+                        Health : {classes.game_map[sector_name].health}
+                        Infrastructure : {classes.game_map[sector_name].infra}
+                        Altitude : {classes.game_map[sector_name].altitude}
+                        Flood level: {classes.game_map[sector_name].flooded}
+                        Absorption index: {classes.game_map[sector_name].absorption}
+                        Political importance: {classes.game_map[sector_name].power}
+                        Flood deaths so far: {classes.game_map[sector_name].deaths}
+                        Evacuation warning: {classes.game_map[sector_name].evac>0}
+                        """
+        
+        home_spt.append({(spt, sector_name): classes.game_map[sector_name].coords})
+
+    sidebar_text = f""" 
+    Money : {money}
+    Political power : {political}
+    Turn number: {game_time}
+    Deaths so far: {deaths}
+    Enter "t" to get a tutorial
+    List of Commands - "quit-game": quitting,
+    "show-boats": show_boats, "show-home"
+    "show-dams": show_dams,"deploy-boats": 
+    deploy_boats, "build-dam": build_dam, 
+    "deploy-food": deploy_food, "call-evac": evac, 
+    "flood-sector": flood_sector,
+    "control-dam": control_dam, 
+    "deploy-heli": deploy_helicopter, "end-turn"
+
+    """
+    graphics.set_sidebar_data(sidebar_text)
+    graphics.set_sprites_with_labels(home_spt)
+    graphics.load_map(classes.map_spt)
 
 def deploy_boats():
     global money
 
+    show_boats()
     print("You are reassigning x boats from sector A to sector B")
     x = int(input("Input x "))
     A = input("Input A ")
@@ -108,31 +133,38 @@ def deploy_boats():
     if classes.boats[A]["active"] < x:
         print("Insufficient boats to reassign in A")
     else: 
-        B = int(input("Input B "))
+        B = input("Input B ")
         classes.boats[A]["active"] -= x
         classes.boats[B]["locked"] += x
         print(f"Your boats are now in {B}. They cannot be activated to rescue people in this turn.")
+    show_boats()
 
 def build_dam():
     global money
-    dam_build = input("Name of dam to build")
-    if dam_build not in potential_dams:
+    global dam_q
+    show_dams(print_message=False)
+    print("Your dam options are listed on the sidebar")
+    dam_build = input("Name of dam to build ")
+    if dam_build not in classes.pot_dams:
         print("Dam not found. Check your spelling!")
         return
 
-    if money < potential_dams[dam_build]["cost"]:
+    if money < classes.pot_dams[dam_build].cost:
         print("Insufficient resources")
     else:
-        money -=  potential_dams[dam_build]["cost"]
-        dams[dam_build] = potential_dams[dam_build]
-        del potential_dams[dam_build]
+        money -=  classes.pot_dams[dam_build].cost
+        dam_q.append({"dam": classes.pot_dams[dam_build], "turns": classes.pot_dams[dam_build].build_time})
+        del classes.pot_dams[dam_build]
+
+    print("Action completed")
+    show_home()
 
 def deploy_food():
     global money
     print("You are deploying food to areas affected by floods")
 
-    c = input("Enter the name of the sector you want to input")
-    y = int(input("Enter the amount of money's worth of food you want to deploy:(1 UNIT OF MONEY/ PACKET OF FOOD"))
+    c = input("Enter the name of the sector you want to input ")
+    y = int(input("Enter the amount of money's worth of food you want to deploy:(1 UNIT OF MONEY/ PACKET OF FOOD "))
 
     if y > money:
         print("Insufficient resource")
@@ -141,7 +173,7 @@ def deploy_food():
         money -= y
 
         classes.game_map[c].health += y*0.02
-
+    show_home()
 
 def activate_boat():
     global money
@@ -150,6 +182,7 @@ def activate_boat():
      - costs 0.05 per boat activation, each boat evacuates 500 people
         It increases morale and health of the target sector but reduces health of output sector""")
     
+    show_boats()
     insector=input("Enter the sector in which boats are to be activated ")
     outsector = input("Enter name of sector to send the evacuees to ")
     num=int(input('Enter the number of boats you want to activate '))
@@ -187,21 +220,26 @@ def activate_boat():
     classes.game_map[insector].population += 500*num
     morale += 0.25 * num
 
+    print("Action completed")
+    show_boats()
+
 def helicopter_rescue(): 
     global money
     print("This is for emergency evacuation where other modes of evacuation may not be effective. " \
     "It has a chance of greatly increases morale but can fail!")
 
-    sec_name = input("Enter the name of the sector you want to input")
+    sec_name = input("Enter the name of the sector you want to input: ")
     if sec_name not in classes.game_map:
         print("Sector not found")
         return
+    else:
+        sec = classes.game_map[sec_name]
     
-    if sec_name.flooded < 0.5:
+    if sec.flooded < 0.5:
         print("Helicopter rescue not available if flood level is very low")
         return
     
-    num = input("Enter number of helicopters to deploy")
+    num = input("Enter number of helicopters to deploy: ")
 
     if num > heli:
         print("Insufficent Helicopters")
@@ -211,7 +249,7 @@ def helicopter_rescue():
  
     money -= num*4
 
-    failure_chance = classes.game_map[sec_name].altitude * 0.001
+    failure_chance = sec.altitude * 0.001
     lost = 0
     for _ in range(num):
         if random.random() < failure_chance:
@@ -221,7 +259,7 @@ def helicopter_rescue():
     num -= lost
 
     morale += num*2
-    classes.game_map[sec_name].health += num*0.01
+    sec.health += num*0.01
     print("Action Completed")
 
 def evac():
@@ -271,7 +309,7 @@ FLOOD PREPARATION & EVACUATION GUIDELINES
 
     print("-" * 60)
 
-def flood_sector(sector, river_reduction=2.0):
+def flood_sector(river_reduction=2.0):
     """
     Deliberately floods a sector to reduce river height
     and protect downstream regions.
@@ -306,7 +344,7 @@ but public morale and political confidence will suffer.""")
         print("River is not overflowing. Can't flood sector")
         return
     
-    print(f"\nEMERGENCY FLOODING INITIATED IN SECTOR {sector.name.upper()}")
+    print(f"\nEMERGENCY FLOODING INITIATED IN SECTOR {sector_name.upper()}")
     print("-" * 60)
 
     # Reduce river height 
@@ -314,7 +352,7 @@ but public morale and political confidence will suffer.""")
     path_var["height"] = max(path_var["height"] - river_reduction, path_var["max_height"])
 
     change = original_height - path_var["height"]
-    sector.flooded += change * path_var["width"]
+    sector_.flooded += change * path_var["width"]
     river_.path[ind] = path_var
 
     # Severe penalties
@@ -322,25 +360,35 @@ but public morale and political confidence will suffer.""")
     political -= 10 * change 
 
     print(f"River height reduced from {original_height}m to {path_var['height']}m.")
+    show_home()
 
 def control_dam():
     dam_name = input("Name of dam to control: ")
-    if dam_name not in dams:
+    if dam_name not in classes.dams:
         print("Dam not found")
         return
 
     amt = float(input("Amount of water to release"))
-    if amt > dams[dam_name].cap_used:
+    if amt > classes.dams[dam_name].cap_used:
         print("Amount is greater than water held by reservoir! Releasing all the water")
-        amt = dams[dam_name].cap_used
+        amt = classes.dams[dam_name].cap_used
     
-    dams[dam_name].cap_used -= amt
-    dams[dam_name].river.add_water(dams[dam_name].sector, amt)
+    classes.dams[dam_name].cap_used -= amt
+    classes.dams[dam_name].river.add_water(classes.dams[dam_name].sector, amt)
+
+    print("Action completed")
+
+def tutorial():
+    try:
+        with open("tutorial.md", "r", encoding="utf-8") as f:
+            print(f.read())
+    except FileNotFoundError:
+        print("Tutorial file not found.")
 
 commands = {"quit-game": quitting, "show-boats": show_boats, 
-            "show-dams": show_dams,"deploy-boats": deploy_boats, "build-dam": build_dam, 
+            "show-dams": show_dams, "show-home": show_home, "deploy-boats": deploy_boats, "build-dam": build_dam, 
             "deploy-food": deploy_food, "call-evac": evac, "flood-sector": flood_sector,
-             "control-dam": control_dam, "deploy-heli": helicopter_rescue}
+             "control-dam": control_dam, "deploy-heli": helicopter_rescue, "activate-boats": activate_boat,"t": tutorial}
 
 def generate_rainfall(
     sectors,
@@ -435,6 +483,11 @@ def inter_turn_recovery():
     Recharges player health, money, and rescue resources between turns.
     Balances catch-up for bad turns and rewards political power.
 """
+    global deaths
+    global money
+    global political
+    global heli
+
 
     death_factor = min(deaths / 1000, 2.0)  # cap effect
     political_factor = 0.5 + (political / 100)
@@ -450,33 +503,51 @@ def inter_turn_recovery():
     helicopters_gained = 2 if random.random() < (political / 200) else 0
 
     classes.boats["Guwahati"]["inactive"] += boats_gained
-    helicopters += helicopters_gained
-    deaths = 0
+    heli += helicopters_gained
 
 
-def end_turn():     
+def end_turn():  
+    global heli  
+    global deaths
+    global locked_heli
+    global political
+    global morale
+    global money
+    global game_time
+
     for sector_name in classes.boats:
-        classes.boats["inactive"] += classes.boats["locked"]
-        classes.boats["locked"] = 0
+        classes.boats[sector_name]["inactive"] += classes.boats[sector_name]["locked"]
+        classes.boats[sector_name]["locked"] = 0
+        
     heli += locked_heli
     locked_heli = 0
 
-    rainfall_map = generate_rainfall(classes.game_map, rain_history)
     for sector_name in classes.game_map:
-        classes.game_map[sector_name].flooded(rainfall_map[sector_name]*10)
         classes.game_map[sector_name].evacuation()
 
-    for dam in dams:
-        dam.fail()
+    for dam_ in dam_q:
+        dam_["turns"] -= 1
+        if dam_["turns"] == 1:
+            print(f"{dam_["dam"].name} has been built" )
 
-    for river in classes.rivers:
-        river.flood_propagate()
+    for dam_ in classes.dams:
+        classes.dams[dam_].fail()
+
+    for river_ in classes.rivers:
+        classes.rivers[river_].flood_propagate() 
 
     deaths = 0
     for sector_name in classes.game_map:
-        classes.game_map[sector_name].flood()
+        political_loss, morale_loss = classes.game_map[sector_name].flood(game_time)
+
+        political -= political_loss
+        morale -= morale_loss
+
+        print(political_loss, morale_loss)
+
         deaths += classes.game_map[sector_name].deaths
         classes.game_map[sector_name].absorb()
+
 
     if political < 0:
         print("Game over! Political acceptance has dropped below 0! The politicians are angry and you have been fired!!!")
@@ -488,6 +559,9 @@ def end_turn():
         _ = input("Good try! Enter X to end the game")
         sys.exit()
 
+    rainfall_map = generate_rainfall(classes.game_map, game_time)
+    for sector_name in classes.game_map:
+        classes.game_map[sector_name].flooded += rainfall_map[sector_name]
     inter_turn_recovery()
 
 def end_game():
@@ -554,19 +628,39 @@ def end_game():
         "sector_report": report
     }
 
-def handle_command(command):
-    if command == "end-turn":
-        end_turn()
-        return
+def game_loop():
+    global game_time
+    global commands
 
-    if command not in commands:
-        print("Invalid command")
-    else:
-        commands[command.lower()]()
+    start = input("Do you accept the mission (Yes/No) ")
+    if start.lower() == "no":
+        print("Alright. Maybe some other time")
+        sys.exit()
+    show_home()
 
-while True:
-    graphics.gui_tick()
-    
-    if not command_queue.empty():
-        command = command_queue.get()
-        handle_command(command)
+
+    while True:
+        if game_time > 10:
+            end_game()
+
+        command = input("Input your command - ")
+        if command == "end-turn":
+            end_turn()
+
+        if command not in commands:
+            print("Invalid command")
+        else:
+            commands[command.lower()]()
+
+def start_game():
+
+    game_thread = threading.Thread(
+        target=game_loop,
+        daemon=True
+    )
+    game_thread.start()
+    graphics.gui_loop()
+
+if __name__ == "__main__":
+    start_game()
+#Starting the game 
