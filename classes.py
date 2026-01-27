@@ -1,7 +1,7 @@
 import random
 
 #sprites
-map_spt = "templates/map.jpg"
+map_spt = "templates/mapp.jpg"
 boat_spt = "templates/boat.png"
 town_spt = "templates/city.png"
 village_spt = "templates/villade.png"
@@ -359,33 +359,34 @@ class dam:
             print(f"Oh no! {self.name} has failed! All water released")
 
 
-lst = [sector("Upper Siang", 35000, 0.20, 0.75, 0.20, 3500, (0,0)),
-sector( "East Siang", 100000, 0.30, 0.70, 0.30, 300, (0,0)),
+lst = [sector("Upper Siang", 35000, 0.20, 0.75, 0.20, 3500, (2000,500)),
+sector( "East Siang", 100000, 0.30, 0.70, 0.30, 300, (2222,800)),
 sector( "Upper Dibang Valley", 8000, 0.15, 0.80, 0.15, 4000, (2600,260)),
-sector( "Lower Dibang Valley", 60000, 0.25, 0.70, 0.25, 300, (0,0)),
-sector( "Lohit", 150000, 0.35, 0.65, 0.10, 400, (0,0)),
-sector( "Lower Subansiri", 83000, 0.10, 0.68, 0.28, 600, (0,0)),
+sector( "Lower Dibang Valley", 60000, 0.25, 0.70, 0.25, 300, (2600,600)),
+sector( "Lohit", 150000, 0.35, 0.65, 0.10, 400, (2850,750)),
+sector( "Lower Subansiri", 83000, 0.10, 0.68, 0.28, 600, (1517,1222)),
 
-sector( "Tinsukia", 1300000, 0.75, 0.40, 0.65, 120, (0,0)),
-sector( "Dibrugarh", 1320000, 0.80, 0.38, 0.70, 110, (0,0)),
-sector( "Dhemaji", 690000, 0.35, 0.55, 0.30, 105, (0,0)),
-sector( "Lakhimpur", 1050000, 0.40, 0.50, 0.35, 100, (0,0)),
+sector( "Tinsukia", 1300000, 0.75, 0.40, 0.65, 120, (2500,1100)),
+sector( "Dibrugarh", 1320000, 0.80, 0.38, 0.70, 110, (2200,1300)),
+sector( "Dhemaji", 690000, 0.35, 0.55, 0.30, 105, (2100,1050)),
+sector( "Lakhimpur", 1050000, 0.40, 0.50, 0.35, 100, (1700,1300)),
 
-sector( "Jorhat", 1100000, 0.60, 0.45, 0.55, 90, (0,0)),
-sector( "Golaghat", 1060000, 0.55, 0.48, 0.50, 95, (0,0)),
-sector( "Sonitpur", 1900000, 0.65, 0.42, 0.55, 80, (0,0)),
-sector( "Biswanath", 610000, 0.45, 0.50, 0.40, 85, (0,0)),
+sector( "Jorhat", 1100000, 0.60, 0.45, 0.55, 90, (1750,1750)),
+sector( "Golaghat", 1060000, 0.55, 0.48, 0.50, 95, (1400,2000)),
+sector( "Sonitpur", 1900000, 0.65, 0.42, 0.55, 80, (750,1500)),
+sector( "Biswanath", 610000, 0.45, 0.50, 0.40, 85, (1250,1500)),
 
-sector( "Nagaon", 2800000, 0.60, 0.40, 0.50, 70, (0,0)),
-sector( "Morigaon", 960000, 0.45, 0.52, 0.40, 65, (0,0)),
-sector( "Guwahati", 1200000, 0.95, 0.20, 0.90, 55, (0,0)),
-sector( "Majuli", 170000, 0.30, 0.60, 0.25, 85, (0,0))
+sector( "Nagaon", 2800000, 0.60, 0.40, 0.50, 70, (874,1833)),
+sector( "Morigaon", 960000, 0.45, 0.52, 0.40, 65, (623,1915)),
+sector( "Guwahati", 1200000, 0.95, 0.20, 0.90, 55, (305,2031)),
+sector( "Majuli", 170000, 0.30, 0.60, 0.25, 85, (2700,1800))
 ]
 game_map = {}
 boats = {}
 for l in lst:
-    #coords = (2600,260)
-    #l.coords = coords
+    x_coord = l.coords[0] * 0.3
+    y_coord = l.coords[1] * 0.3
+    l.coords = (x_coord, y_coord)
     game_map[l.name] = l
     boats[l.name] = {"inactive": 0, "active": 0, "locked": 0}
 
@@ -510,4 +511,4 @@ dams = {}
 for dam_ in dams_lst:
     dams[dam_.name] = dam_
 
-rivers["Subansiri"].path[1]["dam"] = dams["LSD"]
+rivers["Subansiri"].path[0]["dam"] = dams["LSD"]

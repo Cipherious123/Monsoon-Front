@@ -3,7 +3,7 @@ import sys
 
 WINDOW_WIDTH = 1400
 WINDOW_HEIGHT = 650
-MAP_WIDTH = 1100
+MAP_WIDTH = 1040
 SIDEBAR_WIDTH = WINDOW_WIDTH - MAP_WIDTH
 FPS = 60
 
@@ -11,6 +11,8 @@ FPS = 60
 _current_map = None
 _current_sprites_with_labels = []
 _sidebar_data = []
+_original_sidebar_data = []  # Store original sidebar text
+_clicked_sprite_index = None  # Track which sprite is clicked (None if none)
 
 # Runtime-only pygame objects
 _screen = None
@@ -33,13 +35,14 @@ def set_sprites_with_labels(sprite_label_list):
     
     Args:
         list of sprite_label_dict
-        sprite_label_dict: Dictionary mapping (sprite_path, label_text) to (x, y) coordinates
+        sprite_label_dict: Dictionary mapping (sprite_path, label_text, click_text) to (x, y) coordinates
     """
-    global _current_sprites_with_labels
+    global _current_sprites_with_labels, _clicked_sprite_index
     _current_sprites_with_labels = []
+    _clicked_sprite_index = None  # Reset clicked state when sprites change
     
     for sprite_label_dict in sprite_label_list:
-        for (sprite_path, label), pos in sprite_label_dict.items():
+        for (sprite_path, label, click_text), pos in sprite_label_dict.items():
             # Load sprite with alpha channel preserved
             img = pygame.image.load(sprite_path).convert_alpha()
             img = pygame.transform.scale(img, (32, 32))
@@ -50,20 +53,27 @@ def set_sprites_with_labels(sprite_label_list):
                 "rect": rect,
                 "label": label,
                 "label_pos": (pos[0], pos[1] + 40), # Position label below sprite
+                "click_text": click_text,
             })
 
 def clear_sprites():
     """Remove all sprites from the map."""
-    global _current_sprites_with_labels
+    global _current_sprites_with_labels, _clicked_sprite_index
     _current_sprites_with_labels = []
+    _clicked_sprite_index = None
 
 
 def set_sidebar_data(lines):
     """
     lines: list of strings
     """
-    global _sidebar_data
+    global _sidebar_data, _original_sidebar_data, _clicked_sprite_index
     _sidebar_data = lines
+    _original_sidebar_data = lines  # Store original for restoration
+    # If a sprite is clicked, keep showing its text instead of updating
+    if _clicked_sprite_index is None:
+        pass  # sidebar_data is already set
+    # Otherwise, keep showing the clicked sprite's text
 
 
 # -----------------------------
@@ -81,9 +91,15 @@ def _draw_sprites_with_labels():
     label_font = pygame.font.SysFont("consolas", 10)
     line_spacing = 2  # spacing between lines
     
-    for sprite_data in _current_sprites_with_labels:
+    for i, sprite_data in enumerate(_current_sprites_with_labels):
         # --- Draw sprite with proper alpha blending ---
         image = sprite_data["image"]
+        
+        # Highlight sprite if it's clicked
+        if i == _clicked_sprite_index:
+            # Draw a circle or border around clicked sprite
+            pygame.draw.circle(_screen, (255, 255, 0), sprite_data["rect"].center, 20, 2)
+        
         _screen.blit(image, sprite_data["rect"])
         
         # --- Draw multiline label ---
@@ -127,6 +143,7 @@ def _draw_sidebar():
 
     y = 20
 
+    # Use current sidebar data (which may be overwritten by click)
     if isinstance(_sidebar_data, str):
         lines = _sidebar_data.splitlines()
     else:
@@ -136,6 +153,28 @@ def _draw_sidebar():
         text = FONT.render(line, True, (220, 220, 220))
         _screen.blit(text, (MAP_WIDTH + 20, y))
         y += 25
+
+
+def _handle_sprite_click(pos):
+    """Handle mouse click on sprites."""
+    global _sidebar_data, _clicked_sprite_index
+    
+    for i, sprite_data in enumerate(_current_sprites_with_labels):
+        if sprite_data["rect"].collidepoint(pos):
+            # Toggle: if same sprite clicked, restore original
+            if _clicked_sprite_index == i:
+                _sidebar_data = _original_sidebar_data
+                _clicked_sprite_index = None
+            else:
+                # New sprite clicked, show its click_text
+                _sidebar_data = sprite_data["click_text"]
+                _clicked_sprite_index = i
+            return
+    
+    # Click outside any sprite - restore original
+    if _clicked_sprite_index is not None:
+        _sidebar_data = _original_sidebar_data
+        _clicked_sprite_index = None
 
 
 # -----------------------------
@@ -158,6 +197,9 @@ def gui_loop():
             if event.type == pygame.QUIT:
                 pygame.quit()
                 sys.exit()
+            elif event.type == pygame.MOUSEBUTTONDOWN:
+                if event.button == 1:  # Left click
+                    _handle_sprite_click(event.pos)
 
         _screen.fill((0, 0, 0))
         _draw_map()

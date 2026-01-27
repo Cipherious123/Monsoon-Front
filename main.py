@@ -40,7 +40,7 @@ def show_boats():
         spt = classes.boat_spt
         coords = classes.game_map[sec].coords
         text = f"Inactive: {dicty["inactive"]}, Active: {dicty["active"]}, Locked (for 1 turn): {dicty["locked"]}" 
-        boat_spts.append({(spt, text): coords})
+        boat_spts.append({(spt, text, "BOAT BOAT"): coords})
 
     graphics.set_sprites_with_labels(boat_spts)
     print("Action completed")
@@ -54,19 +54,19 @@ def show_dams(print_message = True):
         coords = dam_.sector.coords
         text = f"""Capacity: {dam_.capacity}
 Capacity used: {dam_.cap_used}
-Failure Probability: {dam_.fail_prob}"""
-        dams_spts.append({(classes.dam_spt, text): coords})
+Failure Probability: {dam_.fail_prob}
+State: {dam_.state}"""
+        dams_spts.append({(classes.dam_spt, dam_name, text): coords})
 
     for dam_name in classes.pot_dams:
         dam_ = classes.pot_dams[dam_name]
         coords = dam_.sector.coords
         text = f"""Potential Capacity: {dam_.capacity}
 Capacity used: N/A
-Failure Probability: {dam_.fail_prob}"""
-        if dam_.state == "Construction":
-            text += "\n Under Construction"
+Failure Probability: {dam_.fail_prob}
+State: {dam_.state}"""
 
-        dams_spts.append({(classes.pot_dam_spt, text): coords})
+        dams_spts.append({(classes.pot_dam_spt, dam_name, text): coords})
 
         sidebar_text += f"""{dam_name}
 Cost to build: {dam_.cost}
@@ -88,19 +88,19 @@ def show_home():
         else:
             spt = classes.village_spt
 
-        label_text = f"""{sector_name} - 
-                        Population : {classes.game_map[sector_name].population}
-                        Health : {classes.game_map[sector_name].health}
-                        Infrastructure : {classes.game_map[sector_name].infra}
-                        Altitude : {classes.game_map[sector_name].altitude}
-                        Flood level: {classes.game_map[sector_name].flooded}
-                        Absorption index: {classes.game_map[sector_name].absorption}
-                        Political importance: {classes.game_map[sector_name].power}
-                        Flood deaths so far: {classes.game_map[sector_name].deaths}
-                        Evacuation warning: {classes.game_map[sector_name].evac>0}
+        click_text = f"""{sector_name} - 
+Population : {classes.game_map[sector_name].population}
+Health : {classes.game_map[sector_name].health}
+Infrastructure : {classes.game_map[sector_name].infra}
+Altitude : {classes.game_map[sector_name].altitude}
+Flood level: {classes.game_map[sector_name].flooded}
+Absorption index: {classes.game_map[sector_name].absorption}
+Political importance: {classes.game_map[sector_name].power}
+Flood deaths so far: {classes.game_map[sector_name].deaths}
+Evacuation warning: {classes.game_map[sector_name].evac>0}
                         """
         
-        home_spt.append({(spt, sector_name): classes.game_map[sector_name].coords})
+        home_spt.append({(spt, sector_name, click_text): classes.game_map[sector_name].coords})
 
     sidebar_text = f""" 
     Money : {money}
@@ -121,6 +121,19 @@ def show_home():
     graphics.set_sidebar_data(sidebar_text)
     graphics.set_sprites_with_labels(home_spt)
     graphics.load_map(classes.map_spt)
+
+def show_flood():
+    spts = []
+    for sec_name in classes.game_map():
+        if sec_name.flooded <= 0:
+            continue
+
+        label_text = sec_name + f"-flood level{classes.game_map[sec_name].flooded}"
+        click_text = ":->"
+        spts.append({(classes.flood_spt, label_text, click_text): classes.game_map[sec_name].flooded})
+
+    graphics.set_sprites_with_labels(spts)
+    print("Action done")
 
 def deploy_boats():
     global money
@@ -663,4 +676,4 @@ def start_game():
 
 if __name__ == "__main__":
     start_game()
-#Starting the game 
+#Starting the game  
