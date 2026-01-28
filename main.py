@@ -113,7 +113,7 @@ Evacuation warning: {classes.game_map[sector_name].evac>0}
     "show-dams": show_dams,"deploy-boats": 
     deploy_boats, "build-dam": build_dam, 
     "deploy-food": deploy_food, "call-evac": evac, 
-    "flood-sector": flood_sector,
+    "flood-sector": flood_sector, "activate-boats"
     "control-dam": control_dam, 
     "deploy-heli": deploy_helicopter, "end-turn"
 
@@ -122,17 +122,24 @@ Evacuation warning: {classes.game_map[sector_name].evac>0}
     graphics.set_sprites_with_labels(home_spt)
     graphics.load_map(classes.map_spt)
 
-def show_flood():
+def show_rivers():
     spts = []
-    for sec_name in classes.game_map():
-        if sec_name.flooded <= 0:
-            continue
+    for sec_name in classes.game_map:
+        sec = classes.game_map[sec_name]
+        label_text = sec_name + f"-flood level{sec.flooded}"
+        click_text = ""
 
-        label_text = sec_name + f"-flood level{classes.game_map[sec_name].flooded}"
-        click_text = ":->"
-        spts.append({(classes.flood_spt, label_text, click_text): classes.game_map[sec_name].flooded})
+        for riv in sec.river_in:
+            click_text += f"""River height of {riv[0].name}:\n{riv[0].path[riv[1]] ["height"]}
+Max river height of {riv[0].name}:\n{riv[0].path[riv[1]] ["max_height"]}
+Width of {riv[0].name}:\n{riv[0].path[riv[1]] ["width"]}
+"""
+
+        spts.append({(classes.flood_spt, label_text, click_text): sec.coords})
 
     graphics.set_sprites_with_labels(spts)
+    sidebar_text = "Click on a sprite to see stats of river passing through it"
+    graphics.set_sidebar_data(sidebar_text)
     print("Action done")
 
 def deploy_boats():
@@ -401,33 +408,33 @@ def tutorial():
 commands = {"quit-game": quitting, "show-boats": show_boats, 
             "show-dams": show_dams, "show-home": show_home, "deploy-boats": deploy_boats, "build-dam": build_dam, 
             "deploy-food": deploy_food, "call-evac": evac, "flood-sector": flood_sector,
-             "control-dam": control_dam, "deploy-heli": helicopter_rescue, "activate-boats": activate_boat,"t": tutorial}
+             "control-dam": control_dam, "deploy-heli": helicopter_rescue, "activate-boats": activate_boat,
+             "show-rivers": show_rivers, "t": tutorial}
 
 def generate_rainfall(
     sectors,
-    turn_number,
-    correlation_radius=5.0):
+    turn_number,):
     """
-    ***Generate spatially correlated rainfall for sectors.***
-    Rainfall organically stops after ~10 turns.
-    -------------------------------------------------------------------------
+    Guaranteed cyclone for first 3-4 turns, then rainfall organically stops after ~10 turns.
     Args:
-        sectors (dict):
-            sector_id -> sector
+        game_map (dict of sectors of map)
         turn_number (int)
         correlation_radius (float): higher = smoother rainfall
     Returns:
         dict:
             sector_id -> rainfall amount (float)
     """
+    
+    correlation_radius=5.0
     # ---- Game phase (0 = early, 1 = late) ----
     phase = min(1.0, turn_number / 10)
     
+    # ---- Rainfall decay factor (stops after ~10 turns) ----
     if turn_number <= 10:
         decay_factor = 1.0 - (turn_number / 10) ** 2  # Quadratic decay
     else:
         decay_factor = random.uniform(0.0, 0.05) if random.random() < 0.1 else 0.0
-    
+
     if decay_factor < 0.01:
         return {sector_id: 0.0 for sector_id in sectors}
     
@@ -437,16 +444,21 @@ def generate_rainfall(
     low_rain_prob = phase * 0.20
     
     # ---- Decide global weather mode ----
-    roll = random.random()
-    if roll < cyclone_prob:
+    # GUARANTEED CYCLONE for first 3-4 turns
+    if turn_number <= 3 or (turn_number == 4 and random.random() < 0.5):
         mode = "cyclone"
         global_base = random.uniform(8.0, 12.0) * decay_factor
-    elif roll < cyclone_prob + low_rain_prob:
-        mode = "drought"
-        global_base = random.uniform(0.5, 1.5) * decay_factor
     else:
-        mode = "normal"
-        global_base = base_mean
+        roll = random.random()
+        if roll < cyclone_prob:
+            mode = "cyclone"
+            global_base = random.uniform(8.0, 12.0) * decay_factor
+        elif roll < cyclone_prob + low_rain_prob:
+            mode = "drought"
+            global_base = random.uniform(0.5, 1.5) * decay_factor
+        else:
+            mode = "normal"
+            global_base = base_mean
     
     # ---- Generate spatial noise anchors ----
     anchor_count = max(8, len(sectors) // 3)
@@ -482,7 +494,8 @@ def generate_rainfall(
             avg_influence = total_influence / total_weight
         else:
             avg_influence = 0.0
-
+        
+        # Add small local noise 
         local_noise = random.gauss(0, 0.5) * decay_factor
         
         # Combine global base with local spatial variation
@@ -575,6 +588,13 @@ def end_turn():
     rainfall_map = generate_rainfall(classes.game_map, game_time)
     for sector_name in classes.game_map:
         classes.game_map[sector_name].flooded += rainfall_map[sector_name]
+
+    for river_ in classes.rivers:
+        for path_var in classes.rivers[river_].path:
+            sec_name = path_var["sector"].name
+            path_var["height"] += rainfall_map[sec_name]
+
+    show_home()
     inter_turn_recovery()
 
 def end_game():
@@ -666,7 +686,6 @@ def game_loop():
             commands[command.lower()]()
 
 def start_game():
-
     game_thread = threading.Thread(
         target=game_loop,
         daemon=True
@@ -676,4 +695,4 @@ def start_game():
 
 if __name__ == "__main__":
     start_game()
-#Starting the game  
+#Starting the game 

@@ -31,6 +31,7 @@ class sector:
         self.deaths = 0
         self.coords = coords
         self.evac = 0
+        self.river_in = [] #(river, index of sector in it's path variable)
 
     def flood(self, game_turn):
         """
@@ -365,11 +366,12 @@ sector( "Upper Dibang Valley", 8000, 0.15, 0.80, 0.15, 4000, (2600,260)),
 sector( "Lower Dibang Valley", 60000, 0.25, 0.70, 0.25, 300, (2600,600)),
 sector( "Lohit", 150000, 0.35, 0.65, 0.10, 400, (2850,750)),
 sector( "Lower Subansiri", 83000, 0.10, 0.68, 0.28, 600, (1517,1222)),
+sector("Upper Subansiri", 35000, 0.20, 0.72, 0.22, 2500, (1400,800)),
 
 sector( "Tinsukia", 1300000, 0.75, 0.40, 0.65, 120, (2500,1100)),
 sector( "Dibrugarh", 1320000, 0.80, 0.38, 0.70, 110, (2200,1300)),
 sector( "Dhemaji", 690000, 0.35, 0.55, 0.30, 105, (2100,1050)),
-sector( "Lakhimpur", 1050000, 0.40, 0.50, 0.35, 100, (1700,1300)),
+sector( "Lakhimpur", 1050000, 0.40, 0.50, 0.35, 100, (1750,1300)),
 
 sector( "Jorhat", 1100000, 0.60, 0.45, 0.55, 90, (1750,1750)),
 sector( "Golaghat", 1060000, 0.55, 0.48, 0.50, 95, (1400,2000)),
@@ -378,7 +380,7 @@ sector( "Biswanath", 610000, 0.45, 0.50, 0.40, 85, (1250,1500)),
 
 sector( "Nagaon", 2800000, 0.60, 0.40, 0.50, 70, (874,1833)),
 sector( "Morigaon", 960000, 0.45, 0.52, 0.40, 65, (623,1915)),
-sector( "Guwahati", 1200000, 0.95, 0.20, 0.90, 55, (305,2031)),
+sector( "Guwahati", 3000000, 0.95, 0.20, 0.90, 55, (305,2000)),
 sector( "Majuli", 170000, 0.30, 0.60, 0.25, 85, (2700,1800))
 ]
 game_map = {}
@@ -449,7 +451,8 @@ rivers = {
     "Subansiri": river(
         name="Subansiri",
         path=[
-            {"sector": game_map["Lower Subansiri"], "width": 220, "max_height": 15, "height": 9,},
+            {"sector": game_map["Upper Subansiri"], "width": 200, "max_height": 10, "height": 6},
+            {"sector": game_map["Lower Subansiri"], "width": 220, "max_height": 15, "height": 9},
         ],
         terminal=(Bigriver, 6)
     ),
@@ -512,3 +515,9 @@ for dam_ in dams_lst:
     dams[dam_.name] = dam_
 
 rivers["Subansiri"].path[0]["dam"] = dams["LSD"]
+
+for river_ in rivers:
+    ind = -1
+    for path_var in rivers[river_].path: #Adding corresponding river to a sector
+        ind += 1
+        path_var["sector"].river_in.append((rivers[river_], ind))
