@@ -21,7 +21,7 @@ rain_history = []
 deaths = 0
 dam_q = []
 home_spt = []
-
+rainfall_map = {}
 
 def quitting():
     confirm = input("Input QWERTY to quit. Progress won't be saved ")
@@ -32,15 +32,14 @@ def quitting():
 
 def show_boats():
     boat_spts = []
-    for sec in classes.boats:
-        dicty = classes.boats[sec]
-        if sum(dicty.values()) == 0:
-            continue
+    for sec_name in classes.boats:
+        dicty = classes.boats[sec_name]
 
         spt = classes.boat_spt
-        coords = classes.game_map[sec].coords
-        text = f"Inactive: {dicty["inactive"]}, Active: {dicty["active"]}, Locked (for 1 turn): {dicty["locked"]}" 
-        boat_spts.append({(spt, text, "BOAT BOAT"): coords})
+        coords = classes.game_map[sec_name].coords
+        text = f"{sec_name} - {sum(dicty.values())}" 
+        click_text = f"Inactive: {dicty["inactive"]}, Active: {dicty["active"]}, Locked (for 1 turn): {dicty["locked"]}"
+        boat_spts.append({(spt, text, click_text): coords})
 
     graphics.set_sprites_with_labels(boat_spts)
     print("Action completed")
@@ -80,6 +79,12 @@ Failure probability: {dam_.fail_prob}
         print("Action Completed")
 
 def show_home():
+    global morale
+    global money
+    global political
+    global deaths
+    global game_time
+
     for sector_name in classes.game_map:
         if classes.game_map[sector_name].population < 100000:
             spt = classes.village_spt
@@ -107,6 +112,7 @@ Evacuation warning: {classes.game_map[sector_name].evac>0}
     Political power : {political}
     Turn number: {game_time}
     Deaths so far: {deaths}
+    Morale: {morale}
     Enter "t" to get a tutorial
     List of Commands - "quit-game": quitting,
     "show-boats": show_boats, "show-home"
@@ -120,25 +126,33 @@ Evacuation warning: {classes.game_map[sector_name].evac>0}
     """
     graphics.set_sidebar_data(sidebar_text)
     graphics.set_sprites_with_labels(home_spt)
-    graphics.load_map(classes.map_spt)
+    graphics.set_map(classes.map_spt)
 
 def show_rivers():
     spts = []
+    global morale
+    global rainfall_map
     for sec_name in classes.game_map:
         sec = classes.game_map[sec_name]
-        label_text = sec_name + f"-flood level{sec.flooded}"
+        label_text = sec_name 
         click_text = ""
 
         for riv in sec.river_in:
-            click_text += f"""River height of {riv[0].name}:\n{riv[0].path[riv[1]] ["height"]}
+            click_text = f"""River height of {riv[0].name}:\n{riv[0].path[riv[1]] ["height"]}
 Max river height of {riv[0].name}:\n{riv[0].path[riv[1]] ["max_height"]}
 Width of {riv[0].name}:\n{riv[0].path[riv[1]] ["width"]}
-"""
 
+Flood level: {sec.flooded}
+Morale in the states of Assam and Arunachal: {morale}
+
+"""
+        if rainfall_map:
+            click_text += f"Rainfall recieved last turn:{rainfall_map[sec_name]}"
         spts.append({(classes.flood_spt, label_text, click_text): sec.coords})
 
     graphics.set_sprites_with_labels(spts)
-    sidebar_text = "Click on a sprite to see stats of river passing through it"
+    sidebar_text = "Click on a sprite to see Flood level and" \
+    "stats of river passing through it"
     graphics.set_sidebar_data(sidebar_text)
     print("Action done")
 
@@ -329,7 +343,7 @@ FLOOD PREPARATION & EVACUATION GUIDELINES
 
     print("-" * 60)
 
-def flood_sector(river_reduction=2.0):
+def flood_sector(river_reduction=5.0):
     """
     Deliberately floods a sector to reduce river height
     and protect downstream regions.
@@ -419,24 +433,25 @@ def generate_rainfall(
     Args:
         game_map (dict of sectors of map)
         turn_number (int)
-        correlation_radius (float): higher = smoother rainfall
     Returns:
         dict:
             sector_id -> rainfall amount (float)
     """
-    
-    correlation_radius=5.0
-    # ---- Game phase (0 = early, 1 = late) ----
+    correlation_radius = 5
     phase = min(1.0, turn_number / 10)
-    
-    # ---- Rainfall decay factor (stops after ~10 turns) ----
+
     if turn_number <= 10:
         decay_factor = 1.0 - (turn_number / 10) ** 2  # Quadratic decay
     else:
+        # Add some randomness for organic feel - occasionally tiny drizzle
         decay_factor = random.uniform(0.0, 0.05) if random.random() < 0.1 else 0.0
-
+    
+    # If decay factor is near zero, return minimal rainfall
     if decay_factor < 0.01:
         return {sector_id: 0.0 for sector_id in sectors}
+    
+    # ---- Determine if this is the localized cyclone period ----
+    is_localized_cyclone = (turn_number <= 3)
     
     # ---- Phase-based parameters (scaled by decay) ----
     base_mean = ((1 - phase) * 5.0 + phase * 3.0) * decay_factor
@@ -444,10 +459,9 @@ def generate_rainfall(
     low_rain_prob = phase * 0.20
     
     # ---- Decide global weather mode ----
-    # GUARANTEED CYCLONE for first 3-4 turns
-    if turn_number <= 3 or (turn_number == 4 and random.random() < 0.5):
-        mode = "cyclone"
-        global_base = random.uniform(8.0, 12.0) * decay_factor
+    if is_localized_cyclone:
+        mode = "localized_cyclone"
+        global_base = random.uniform(1.0, 3.0) * decay_factor  # Lower base for localized
     else:
         roll = random.random()
         if roll < cyclone_prob:
@@ -461,19 +475,49 @@ def generate_rainfall(
             global_base = base_mean
     
     # ---- Generate spatial noise anchors ----
-    anchor_count = max(8, len(sectors) // 3)
-    anchors = []
     sector_list = list(sectors.values())
     
-    for _ in range(anchor_count):
-        ax, ay = random.choice(sector_list).coords
-        if mode == "cyclone":
-            strength = random.uniform(2.0, 8.0) * decay_factor
-        elif mode == "drought":
-            strength = random.uniform(-1.0, 0.5) * decay_factor
-        else:
-            strength = random.uniform(-3.0, 3.0) * decay_factor
-        anchors.append((ax, ay, strength))
+    if mode == "localized_cyclone":
+        # Find the top portion of the map (highest y-coordinates)
+        all_y_coords = [s.coords[1] for s in sector_list]
+        max_y = max(all_y_coords)
+        min_y = min(all_y_coords)
+        y_range = max_y - min_y
+        
+        # Define "top" as upper 40% of the map
+        top_threshold = max_y - (y_range * 0.4)
+        top_sectors = [s for s in sector_list if s.coords[1] >= top_threshold]
+        
+        # Place anchors only in top portion
+        anchor_count = max(5, len(top_sectors) // 2)
+        anchors = []
+        
+        for _ in range(anchor_count):
+            if top_sectors:
+                ax, ay = random.choice(top_sectors).coords
+            else:
+                ax, ay = random.choice(sector_list).coords
+            # Strong rainfall in cyclone center
+            strength = random.uniform(6.0, 10.0) * decay_factor
+            anchors.append((ax, ay, strength))
+        print("Cyclone has hit!! ")
+    else:
+        # Normal anchor generation for other modes
+        anchor_count = max(8, len(sectors) // 3)
+        anchors = []
+        
+        for _ in range(anchor_count):
+            ax, ay = random.choice(sector_list).coords
+            if mode == "cyclone":
+                strength = random.uniform(2.0, 8.0) * decay_factor
+                print("Cyclone has hit!! ")
+            elif mode == "drought":
+                strength = random.uniform(-1.0, 0.5) * decay_factor
+                print("Less rainfall this time ")
+            else:
+                strength = random.uniform(-3.0, 3.0) * decay_factor
+                print("Rainfall has hit!")
+            anchors.append((ax, ay, strength))
     
     # ---- Allocate rainfall to sectors ----
     rainfall_map = {}
@@ -495,7 +539,7 @@ def generate_rainfall(
         else:
             avg_influence = 0.0
         
-        # Add small local noise 
+        # Add small local noise (also scaled by decay)
         local_noise = random.gauss(0, 0.5) * decay_factor
         
         # Combine global base with local spatial variation
@@ -530,6 +574,7 @@ def inter_turn_recovery():
 
     classes.boats["Guwahati"]["inactive"] += boats_gained
     heli += helicopters_gained
+    print(f"Helicopters gained: {helicopters_gained}")
 
 
 def end_turn():  
@@ -556,46 +601,47 @@ def end_turn():
         if dam_["turns"] == 1:
             print(f"{dam_["dam"].name} has been built" )
 
+    dam_failed = False
     for dam_ in classes.dams:
-        classes.dams[dam_].fail()
-
-    for river_ in classes.rivers:
-        classes.rivers[river_].flood_propagate() 
+        if classes.dams[dam_].fail():
+            dam_failed = True
 
     deaths = 0
     for sector_name in classes.game_map:
-        political_loss, morale_loss = classes.game_map[sector_name].flood(game_time)
+        political_loss, morale_loss = classes.game_map[sector_name].flood(game_time, dam_failed)
 
         political -= political_loss
         morale -= morale_loss
-
-        print(political_loss, morale_loss)
 
         deaths += classes.game_map[sector_name].deaths
         classes.game_map[sector_name].absorb()
 
 
-    if political < 0:
+    if political < 0 and game_time > 3:
         print("Game over! Political acceptance has dropped below 0! The politicians are angry and you have been fired!!!")
         _ = input("Good try! Enter X to end the game")
         sys.exit()
     
-    if morale < 0:
+    if morale < 0 and game_time > 3:
         print("Game over! Morale has dropped below 0! The people are angry and you have been fired!!!")
         _ = input("Good try! Enter X to end the game")
         sys.exit()
 
-    rainfall_map = generate_rainfall(classes.game_map, game_time)
-    for sector_name in classes.game_map:
-        classes.game_map[sector_name].flooded += rainfall_map[sector_name]
 
+    rainfall_map = generate_rainfall(classes.game_map, game_time)
     for river_ in classes.rivers:
         for path_var in classes.rivers[river_].path:
             sec_name = path_var["sector"].name
             path_var["height"] += rainfall_map[sec_name]
 
-    show_home()
+    
+    for river_ in classes.rivers:
+        classes.rivers[river_].flood_propagate() 
+        classes.rivers[river_].spawn_source_water() 
+
     inter_turn_recovery()
+    game_time += 1
+    show_home()
 
 def end_game():
     total_score = 0
@@ -686,6 +732,7 @@ def game_loop():
             commands[command.lower()]()
 
 def start_game():
+
     game_thread = threading.Thread(
         target=game_loop,
         daemon=True

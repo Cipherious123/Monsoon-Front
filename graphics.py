@@ -11,23 +11,15 @@ FPS = 60
 _current_map = None
 _current_sprites_with_labels = []
 _sidebar_data = []
-_original_sidebar_data = []  # Store original sidebar text
-_clicked_sprite_index = None  # Track which sprite is clicked (None if none)
-
-# Runtime-only pygame objects
+_original_sidebar_data = []
+_clicked_sprite_index = None  # Track which sprite is clicked
+_pending_map_path = None
 _screen = None
 FONT = None
 
-# -----------------------------
-# Core Functions
-# -----------------------------
-
-def load_map(map_image_path):
-    """Load and set the current map background."""
-    global _current_map
-    _current_map = pygame.image.load(map_image_path).convert()
-    _current_map = pygame.transform.scale(_current_map, (MAP_WIDTH, WINDOW_HEIGHT))
-
+def set_map(_path):
+    global _pending_map_path
+    _pending_map_path = _path
 
 def set_sprites_with_labels(sprite_label_list):
     """
@@ -75,12 +67,20 @@ def set_sidebar_data(lines):
         pass  # sidebar_data is already set
     # Otherwise, keep showing the clicked sprite's text
 
+def apply_pending_map():
+    global _current_map, _pending_map_path
 
-# -----------------------------
-# Rendering Helpers
-# -----------------------------
+    if _pending_map_path is None:
+        return
+
+    surf = pygame.image.load(_pending_map_path).convert()
+    surf = pygame.transform.scale(surf, (MAP_WIDTH, WINDOW_HEIGHT))
+
+    _current_map = surf
+    _pending_map_path = None
 
 def _draw_map():
+    global _current_map
     if _current_map:
         _screen.blit(_current_map, (0, 0))
 
@@ -177,10 +177,6 @@ def _handle_sprite_click(pos):
         _clicked_sprite_index = None
 
 
-# -----------------------------
-# Main GUI Loop Tick
-# -----------------------------
-
 def gui_loop():
     global _screen, FONT
 
@@ -202,6 +198,8 @@ def gui_loop():
                     _handle_sprite_click(event.pos)
 
         _screen.fill((0, 0, 0))
+        apply_pending_map()
+        
         _draw_map()
         _draw_sprites_with_labels()
         _draw_sidebar()
